@@ -30,29 +30,29 @@ export default function ColorPicker({ color, onChange, onClose }: ColorPickerPro
   return (
     <div
       ref={ref}
-      className="absolute bottom-full mb-2 p-3 bg-white dark:bg-[#2a2a3e] rounded-xl shadow-xl border border-gray-200 dark:border-[#444] z-50"
+      className="absolute bottom-full mb-3 p-4 bg-white dark:bg-[#2a2a3e] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#444] z-50"
     >
-      <div className="grid grid-cols-6 gap-1.5 mb-2">
+      <div className="grid grid-cols-6 gap-2 mb-3">
         {PRESET_COLORS.map((c) => (
           <button
             key={c}
             onClick={() => { onChange(c); onClose(); }}
-            className={`w-7 h-7 rounded-md border-2 transition-transform hover:scale-110 ${
-              color === c ? "border-blue-500 scale-110" : "border-gray-300 dark:border-[#555]"
+            className={`w-9 h-9 rounded-lg border-2 transition-all hover:scale-115 ${
+              color === c ? "border-blue-500 scale-110 shadow-md" : "border-gray-200 dark:border-[#555]"
             }`}
             style={{ backgroundColor: c }}
             title={c}
           />
         ))}
       </div>
-      <div className="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-[#444]">
+      <div className="flex items-center gap-3 pt-3 border-t border-gray-200 dark:border-[#444]">
         <input
           type="color"
           value={color}
           onChange={(e) => { onChange(e.target.value); onClose(); }}
-          className="w-8 h-8 cursor-pointer rounded border-0"
+          className="w-10 h-10 cursor-pointer rounded-lg border-0"
         />
-        <span className="text-xs text-gray-500">{color}</span>
+        <span className="text-sm text-gray-500 font-mono">{color}</span>
       </div>
     </div>
   );

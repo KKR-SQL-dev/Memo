@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Canvas, IText, FabricImage, PencilBrush, Group, Rect, FabricObject } from "fabric";
 import { io, Socket } from "socket.io-client";
+import { Home, Save, Trash2 } from "lucide-react";
 import FloatingToolbar, { type ToolType } from "./FloatingToolbar";
 import TableOverlay, { type TableData } from "./TableOverlay";
 
@@ -24,6 +25,8 @@ function getObjId(obj: FabricObject): string {
   return (obj as FabricObject & { _customId: string })._customId || "";
 }
 
+const HEADER_H = 56;
+
 export default function MemoCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<Canvas | null>(null);
@@ -36,10 +39,30 @@ export default function MemoCanvas() {
   const [tables, setTables] = useState<TableData[]>([]);
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
+  const [isDark, setIsDark] = useState(false);
 
   const autoSaveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
+
+  // ─── 다크모드 ───
+  const toggleDark = useCallback(() => {
+    setIsDark((prev) => {
+      const next = !prev;
+      localStorage.setItem("memo-theme", next ? "dark" : "light");
+      if (next) document.documentElement.classList.add("dark");
+      else document.documentElement.classList.remove("dark");
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("memo-theme");
+    if (saved === "dark") {
+      setIsDark(true);
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
 
   // ─── 캔버스 상태 스냅샷 (Undo/Redo) ───
   const saveSnapshot = useCallback(() => {
@@ -69,7 +92,6 @@ export default function MemoCanvas() {
     }
   }, []);
 
-  // ─── Socket.IO 브로드캐스트 헬퍼 ───
   const emitIfLocal = useCallback((event: string, data: unknown) => {
     if (!isRemoteAction.current && socketRef.current) {
       socketRef.current.emit(event, data);
@@ -82,19 +104,18 @@ export default function MemoCanvas() {
 
     const fc = new Canvas(canvasRef.current, {
       width: window.innerWidth,
-      height: window.innerHeight - 56,
+      height: window.innerHeight - HEADER_H,
       backgroundColor: bgColor,
       selection: true,
     });
     fabricRef.current = fc;
 
     const handleResize = () => {
-      fc.setDimensions({ width: window.innerWidth, height: window.innerHeight - 56 });
+      fc.setDimensions({ width: window.innerWidth, height: window.innerHeight - HEADER_H });
       fc.renderAll();
     };
     window.addEventListener("resize", handleResize);
 
-    // ─── Fabric 이벤트 → Socket.IO ───
     fc.on("object:modified", (e) => {
       if (!e.target) return;
       saveSnapshot();
@@ -128,8 +149,7 @@ export default function MemoCanvas() {
           reader.onload = () => {
             const dataUrl = reader.result as string;
             FabricImage.fromURL(dataUrl).then((img) => {
-              const maxW = 800;
-              if (img.width && img.width > maxW) img.scaleToWidth(maxW);
+              if (img.width && img.width > 800) img.scaleToWidth(800);
               img.set({ left: 100, top: 100 });
               setObjId(img);
               fc.add(img);
@@ -146,7 +166,7 @@ export default function MemoCanvas() {
     };
     document.addEventListener("paste", handlePaste);
 
-    // ─── 키보드 단축키 ───
+    // ─── 키보드 ───
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeEl = document.activeElement;
       if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")) return;
@@ -168,14 +188,13 @@ export default function MemoCanvas() {
     };
     document.addEventListener("keydown", handleKeyDown);
 
-    // ─── 서버에서 초기 데이터 로드 ───
+    // ─── 서버 로드 ───
     fetch("/api/memo")
       .then((r) => r.json())
       .then((data) => {
         if (data.canvas_json) {
           try {
-            const parsed = JSON.parse(data.canvas_json);
-            fc.loadFromJSON(parsed).then(() => {
+            fc.loadFromJSON(JSON.parse(data.canvas_json)).then(() => {
               fc.getObjects().forEach((obj) => {
                 const jsonObj = obj.toJSON() as { _customId?: string };
                 if (jsonObj._customId) setObjId(obj, jsonObj._customId);
@@ -184,7 +203,7 @@ export default function MemoCanvas() {
               fc.renderAll();
               saveSnapshot();
             });
-          } catch { /* 빈 캔버스 */ }
+          } catch { /* ignore */ }
         }
         if (data.overlay_data) {
           try { setTables(JSON.parse(data.overlay_data)); } catch { /* ignore */ }
@@ -192,7 +211,7 @@ export default function MemoCanvas() {
       })
       .catch(() => {});
 
-    // ─── Socket.IO 연결 ───
+    // ─── Socket.IO ───
     const socket = io({ transports: ["websocket", "polling"] });
     socketRef.current = socket;
 
@@ -280,7 +299,6 @@ export default function MemoCanvas() {
       isRemoteAction.current = false;
     });
 
-    // ─── 자동저장 (30초) ───
     autoSaveTimer.current = setInterval(() => {
       saveToServer();
       if (socketRef.current) {
@@ -328,7 +346,6 @@ export default function MemoCanvas() {
     }
   }, [activeTool, penColor, bgColor]);
 
-  // ─── 배경색 변경 ───
   useEffect(() => {
     const fc = fabricRef.current;
     if (fc) { fc.backgroundColor = bgColor; fc.renderAll(); }
@@ -344,7 +361,7 @@ export default function MemoCanvas() {
       if (!pointer) return;
 
       if (activeTool === "text") {
-        const text = new IText("텍스트 입력", {
+        const text = new IText("", {
           left: pointer.x, top: pointer.y, fontSize: 24,
           fill: penColor, fontFamily: "sans-serif", editable: true,
         });
@@ -357,9 +374,11 @@ export default function MemoCanvas() {
         emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
         setActiveTool("select");
       } else if (activeTool === "pin") {
-        const bg = new Rect({ width: 260, height: 120, fill: "#fffde7", rx: 8, ry: 8, stroke: "#fdd835", strokeWidth: 1 });
-        const label = new IText("📌 메모", { left: 12, top: 10, fontSize: 16, fill: "#f57f17", fontWeight: "bold", fontFamily: "sans-serif" });
-        const body = new IText("내용을 입력하세요", { left: 12, top: 36, fontSize: 14, fill: "#333333", fontFamily: "sans-serif" });
+        const pinW = 280;
+        const pinH = 140;
+        const bg = new Rect({ width: pinW, height: pinH, fill: "#fffde7", rx: 12, ry: 12, stroke: "#fdd835", strokeWidth: 2 });
+        const label = new IText("📌 메모", { left: 16, top: 14, fontSize: 18, fill: "#f57f17", fontWeight: "bold", fontFamily: "sans-serif" });
+        const body = new IText("", { left: 16, top: 44, fontSize: 15, fill: "#333333", fontFamily: "sans-serif", width: pinW - 32 });
         const group = new Group([bg, label, body], { left: pointer.x, top: pointer.y, subTargetCheck: true, interactive: true });
         setObjId(group);
         fc.add(group);
@@ -370,8 +389,8 @@ export default function MemoCanvas() {
         setActiveTool("select");
       } else if (activeTool === "table") {
         const newTable: TableData = {
-          id: genId(), x: pointer.x, y: pointer.y,
-          rows: [["열 1", "열 2", "열 3"], ["", "", ""], ["", "", ""]],
+          id: genId(), x: pointer.x, y: pointer.y, width: 400,
+          rows: [["", "", ""], ["", "", ""], ["", "", ""]],
           headerColor: "#3b82f6",
         };
         setTables((prev) => [...prev, newTable]);
@@ -388,8 +407,7 @@ export default function MemoCanvas() {
           reader.onload = () => {
             const dataUrl = reader.result as string;
             FabricImage.fromURL(dataUrl).then((img) => {
-              const maxW = 800;
-              if (img.width && img.width > maxW) img.scaleToWidth(maxW);
+              if (img.width && img.width > 800) img.scaleToWidth(800);
               img.set({ left: pointer.x, top: pointer.y });
               setObjId(img);
               fc.add(img);
@@ -436,7 +454,6 @@ export default function MemoCanvas() {
     fc.loadFromJSON(JSON.parse(nextState)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
   }, [redoStack]);
 
-  // ─── 테이블 핸들러 ───
   const handleTableUpdate = useCallback((updated: TableData) => {
     setTables((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     emitIfLocal("table:update", updated);
@@ -447,7 +464,6 @@ export default function MemoCanvas() {
     emitIfLocal("table:removed", { id });
   }, [emitIfLocal]);
 
-  // ─── 수동 저장 ───
   const handleSave = useCallback(async () => {
     await saveToServer();
     const fc = fabricRef.current;
@@ -459,7 +475,6 @@ export default function MemoCanvas() {
     }
   }, [saveToServer]);
 
-  // ─── 전체삭제 ───
   const handleClear = useCallback(async () => {
     if (!confirm("메모판을 전체삭제 하시겠습니까?")) return;
     const fc = fabricRef.current;
@@ -473,22 +488,41 @@ export default function MemoCanvas() {
   }, []);
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
-      {/* 상단 바 */}
-      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-5 py-2 bg-white/90 backdrop-blur border-b border-gray-200">
-        <span className="text-base font-bold text-gray-800">📝 메모장</span>
-        <div className="flex gap-2">
-          <button onClick={handleSave} className="px-3 py-1.5 text-xs font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-            💾 저장
+    <div className="relative w-full h-screen overflow-hidden bg-white dark:bg-[#121218]">
+      {/* ─── 상단 헤더 ─── */}
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-5 bg-white dark:bg-[#1a1a2e] border-b border-gray-200 dark:border-[#333]" style={{ height: HEADER_H }}>
+        <div className="flex items-center gap-4">
+          <a
+            href="http://192.168.107.6:3501"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors"
+            title="쿠라레 메인 포탈"
+          >
+            <Home size={22} />
+            <span className="text-sm font-medium hidden sm:inline">메인 포탈</span>
+          </a>
+          <div className="w-px h-6 bg-gray-200 dark:bg-[#444]" />
+          <span className="text-lg font-bold text-gray-800 dark:text-white">메모장</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md shadow-blue-500/20"
+          >
+            <Save size={18} />
+            저장
           </button>
-          <button onClick={handleClear} className="px-3 py-1.5 text-xs font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
-            🗑️ 전체삭제
+          <button
+            onClick={handleClear}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors shadow-md shadow-red-500/20"
+          >
+            <Trash2 size={18} />
+            전체삭제
           </button>
         </div>
       </div>
 
       {/* Fabric.js 캔버스 */}
-      <canvas ref={canvasRef} className="absolute top-0 left-0" />
+      <canvas ref={canvasRef} className="absolute left-0" style={{ top: HEADER_H }} />
 
       {/* 테이블 오버레이 */}
       {tables.map((table) => (
@@ -502,6 +536,7 @@ export default function MemoCanvas() {
         bgColor={bgColor} onBgColorChange={setBgColor}
         canUndo={undoStack.length > 1} canRedo={redoStack.length > 0}
         onUndo={handleUndo} onRedo={handleRedo}
+        isDark={isDark} onToggleDark={toggleDark}
       />
     </div>
   );
