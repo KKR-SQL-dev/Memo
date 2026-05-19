@@ -207,13 +207,8 @@ export default function FloatingToolbar({
 
       <button
         onClick={() => {
-          // 가상 키보드 띄우기: 숨겨진 input에 포커스
-          const tmp = document.createElement("input");
-          tmp.style.cssText = "position:fixed;top:50%;left:50%;opacity:0;width:0;height:0;";
-          tmp.inputMode = "text";
-          document.body.appendChild(tmp);
-          tmp.focus();
-          setTimeout(() => { tmp.remove(); }, 1000);
+          // Windows 터치 키보드(TabTip.exe) 실행
+          fetch("/api/keyboard", { method: "POST" });
         }}
         className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105 transition-all"
         title="가상 키보드"
