@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Canvas, IText, FabricImage, PencilBrush, Group, Rect, FabricObject } from "fabric";
+import { Canvas, IText, FabricImage, PencilBrush, Group, Rect, FabricObject, Point } from "fabric";
 import { io, Socket } from "socket.io-client";
-import { Home, Save, Trash2 } from "lucide-react";
+import { Home, Trash2 } from "lucide-react";
 import FloatingToolbar, { type ToolType } from "./FloatingToolbar";
 import TableOverlay, { type TableData } from "./TableOverlay";
 
-// Fabric.js v6: 커스텀 프로퍼티를 직렬화에 포함시키기
+// Fabric.js v6: 커스텀 프로퍼티를 직렬화에 포함
 const CUSTOM_PROPS = ["_customId"];
 const origToObject = FabricObject.prototype.toObject;
 FabricObject.prototype.toObject = function (propertiesToInclude?: string[]) {
@@ -17,7 +17,6 @@ FabricObject.prototype.toObject = function (propertiesToInclude?: string[]) {
 function genId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
-
 function setObjId(obj: FabricObject, id?: string) {
   (obj as FabricObject & { _customId: string })._customId = id || genId();
 }
@@ -25,7 +24,7 @@ function getObjId(obj: FabricObject): string {
   return (obj as FabricObject & { _customId: string })._customId || "";
 }
 
-const HEADER_H = 56;
+const HEADER_H = 52;
 
 export default function MemoCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -41,11 +40,11 @@ export default function MemoCanvas() {
   const [redoStack, setRedoStack] = useState<string[]>([]);
   const [isDark, setIsDark] = useState(false);
 
-  const autoSaveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
   const undoRef = useRef<() => void>(() => {});
   const redoRef = useRef<() => void>(() => {});
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── 다크모드 ───
   const toggleDark = useCallback(() => {
@@ -54,7 +53,6 @@ export default function MemoCanvas() {
       localStorage.setItem("memo-theme", next ? "dark" : "light");
       if (next) document.documentElement.classList.add("dark");
       else document.documentElement.classList.remove("dark");
-      // 캔버스 배경색도 변경
       const fc = fabricRef.current;
       if (fc) {
         const newBg = next ? "#1e1e2e" : "#ffffff";
@@ -75,7 +73,7 @@ export default function MemoCanvas() {
     }
   }, []);
 
-  // ─── 캔버스 상태 스냅샷 (Undo/Redo) ───
+  // ─── 스냅샷 ───
   const saveSnapshot = useCallback(() => {
     const fc = fabricRef.current;
     if (!fc) return;
@@ -84,23 +82,33 @@ export default function MemoCanvas() {
     setRedoStack([]);
   }, []);
 
-  // ─── 서버 저장 ───
-  const saveToServer = useCallback(async () => {
-    const fc = fabricRef.current;
-    if (!fc) return;
-    try {
-      await fetch("/api/memo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+  // ─── 자동저장 (변경 시 3초 뒤 저장) ───
+  const scheduleSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      const fc = fabricRef.current;
+      if (!fc) return;
+      try {
+        const payload = {
           canvas_json: JSON.stringify(fc.toJSON()),
           overlay_data: JSON.stringify(tablesRef.current),
           updated_by: "",
-        }),
-      });
-    } catch (err) {
-      console.error("Auto-save failed:", err);
-    }
+        };
+        await fetch("/api/memo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (socketRef.current) {
+          socketRef.current.emit("canvas:sync", {
+            canvas_json: payload.canvas_json,
+            overlay_data: payload.overlay_data,
+          });
+        }
+      } catch (err) {
+        console.error("Auto-save failed:", err);
+      }
+    }, 3000);
   }, []);
 
   const emitIfLocal = useCallback((event: string, data: unknown) => {
@@ -127,14 +135,30 @@ export default function MemoCanvas() {
     };
     window.addEventListener("resize", handleResize);
 
+    // ─── 마우스 휠 줌 ───
+    fc.on("mouse:wheel", (opt) => {
+      const e = opt.e as WheelEvent;
+      e.preventDefault();
+      e.stopPropagation();
+      const delta = e.deltaY;
+      let zoom = fc.getZoom();
+      zoom *= 0.999 ** delta;
+      if (zoom > 5) zoom = 5;
+      if (zoom < 0.3) zoom = 0.3;
+      fc.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
+    });
+
+    // ─── Fabric 이벤트 ───
     fc.on("object:modified", (e) => {
       if (!e.target) return;
       saveSnapshot();
+      scheduleSave();
       emitIfLocal("object:modified", { id: getObjId(e.target), data: e.target.toJSON() });
     });
 
     fc.on("object:removed", (e) => {
       if (!e.target) return;
+      scheduleSave();
       emitIfLocal("object:removed", { id: getObjId(e.target) });
     });
 
@@ -143,11 +167,12 @@ export default function MemoCanvas() {
       if (path) {
         setObjId(path);
         saveSnapshot();
+        scheduleSave();
         emitIfLocal("drawing:path", { id: getObjId(path), data: path.toJSON() });
       }
     });
 
-    // ─── 이미지 붙여넣기 (Ctrl+V) ───
+    // ─── 이미지 붙여넣기 ───
     const handlePaste = async (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
@@ -158,8 +183,7 @@ export default function MemoCanvas() {
           if (!blob) continue;
           const reader = new FileReader();
           reader.onload = () => {
-            const dataUrl = reader.result as string;
-            FabricImage.fromURL(dataUrl).then((img) => {
+            FabricImage.fromURL(reader.result as string).then((img) => {
               if (img.width && img.width > 800) img.scaleToWidth(800);
               img.set({ left: 100, top: 100 });
               setObjId(img);
@@ -167,6 +191,7 @@ export default function MemoCanvas() {
               fc.setActiveObject(img);
               fc.renderAll();
               saveSnapshot();
+              scheduleSave();
               emitIfLocal("object:added", { id: getObjId(img), data: img.toJSON() });
             });
           };
@@ -179,9 +204,8 @@ export default function MemoCanvas() {
 
     // ─── 키보드 ───
     const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement;
-      if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")) return;
-
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
       if (e.ctrlKey && e.key === "z") { e.preventDefault(); undoRef.current(); return; }
       if (e.ctrlKey && e.key === "y") { e.preventDefault(); redoRef.current(); return; }
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -194,10 +218,35 @@ export default function MemoCanvas() {
           fc.discardActiveObject();
           fc.renderAll();
           saveSnapshot();
+          scheduleSave();
         }
       }
     };
     document.addEventListener("keydown", handleKeyDown);
+
+    // ─── 터치 핀치 줌 ───
+    let lastDist = 0;
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (lastDist > 0) {
+          let zoom = fc.getZoom() * (dist / lastDist);
+          if (zoom > 5) zoom = 5;
+          if (zoom < 0.3) zoom = 0.3;
+          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          fc.zoomToPoint(new Point(cx, cy - HEADER_H), zoom);
+        }
+        lastDist = dist;
+      }
+    };
+    const handleTouchEnd = () => { lastDist = 0; };
+    const canvasEl = fc.getSelectionElement();
+    canvasEl?.addEventListener("touchmove", handleTouchMove, { passive: false });
+    canvasEl?.addEventListener("touchend", handleTouchEnd);
 
     // ─── 서버 로드 ───
     fetch("/api/memo")
@@ -207,8 +256,8 @@ export default function MemoCanvas() {
           try {
             fc.loadFromJSON(JSON.parse(data.canvas_json)).then(() => {
               fc.getObjects().forEach((obj) => {
-                const jsonObj = obj.toJSON() as { _customId?: string };
-                if (jsonObj._customId) setObjId(obj, jsonObj._customId);
+                const j = obj.toJSON() as { _customId?: string };
+                if (j._customId) setObjId(obj, j._customId);
                 else setObjId(obj);
               });
               fc.renderAll();
@@ -233,8 +282,8 @@ export default function MemoCanvas() {
           const parsed = typeof data.canvas_json === "string" ? JSON.parse(data.canvas_json) : data.canvas_json;
           fc.loadFromJSON(parsed).then(() => {
             fc.getObjects().forEach((obj) => {
-              const jsonObj = obj.toJSON() as { _customId?: string };
-              if (jsonObj._customId) setObjId(obj, jsonObj._customId);
+              const j = obj.toJSON() as { _customId?: string };
+              if (j._customId) setObjId(obj, j._customId);
             });
             fc.renderAll();
           });
@@ -242,8 +291,7 @@ export default function MemoCanvas() {
       }
       if (data.overlay_data) {
         try {
-          const parsed = typeof data.overlay_data === "string" ? JSON.parse(data.overlay_data) : data.overlay_data;
-          setTables(parsed);
+          setTables(typeof data.overlay_data === "string" ? JSON.parse(data.overlay_data) : data.overlay_data);
         } catch { /* ignore */ }
       }
       isRemoteAction.current = false;
@@ -253,8 +301,7 @@ export default function MemoCanvas() {
       isRemoteAction.current = true;
       fc.loadFromJSON({ version: fc.toJSON().version, objects: [data.data] }).then(() => {
         const objs = fc.getObjects();
-        const lastObj = objs[objs.length - 1];
-        if (lastObj) setObjId(lastObj, data.id);
+        if (objs.length) setObjId(objs[objs.length - 1], data.id);
         fc.renderAll();
       });
       isRemoteAction.current = false;
@@ -262,17 +309,14 @@ export default function MemoCanvas() {
 
     socket.on("object:modified", (data) => {
       isRemoteAction.current = true;
-      const target = fc.getObjects().find((obj) => getObjId(obj) === data.id);
+      const target = fc.getObjects().find((o) => getObjId(o) === data.id);
       if (target) {
         const idx = fc.getObjects().indexOf(target);
         fc.remove(target);
         fc.loadFromJSON({ version: fc.toJSON().version, objects: [data.data] }).then(() => {
           const objs = fc.getObjects();
-          const newObj = objs[objs.length - 1];
-          if (newObj) {
-            setObjId(newObj, data.id);
-            if (idx < objs.length - 1) fc.moveObjectTo(newObj, idx);
-          }
+          const n = objs[objs.length - 1];
+          if (n) { setObjId(n, data.id); if (idx < objs.length - 1) fc.moveObjectTo(n, idx); }
           fc.renderAll();
         });
       }
@@ -281,8 +325,8 @@ export default function MemoCanvas() {
 
     socket.on("object:removed", (data) => {
       isRemoteAction.current = true;
-      const target = fc.getObjects().find((obj) => getObjId(obj) === data.id);
-      if (target) { fc.remove(target); fc.renderAll(); }
+      const t = fc.getObjects().find((o) => getObjId(o) === data.id);
+      if (t) { fc.remove(t); fc.renderAll(); }
       isRemoteAction.current = false;
     });
 
@@ -290,16 +334,15 @@ export default function MemoCanvas() {
       isRemoteAction.current = true;
       fc.loadFromJSON({ version: fc.toJSON().version, objects: [data.data] }).then(() => {
         const objs = fc.getObjects();
-        const lastObj = objs[objs.length - 1];
-        if (lastObj) setObjId(lastObj, data.id);
+        if (objs.length) setObjId(objs[objs.length - 1], data.id);
         fc.renderAll();
       });
       isRemoteAction.current = false;
     });
 
-    socket.on("table:added", (data) => setTables((prev) => [...prev, data]));
-    socket.on("table:update", (data) => setTables((prev) => prev.map((t) => (t.id === data.id ? data : t))));
-    socket.on("table:removed", (data) => setTables((prev) => prev.filter((t) => t.id !== data.id)));
+    socket.on("table:added", (d) => setTables((p) => [...p, d]));
+    socket.on("table:update", (d) => setTables((p) => p.map((t) => (t.id === d.id ? d : t))));
+    socket.on("table:removed", (d) => setTables((p) => p.filter((t) => t.id !== d.id)));
 
     socket.on("canvas:clear", () => {
       isRemoteAction.current = true;
@@ -310,31 +353,47 @@ export default function MemoCanvas() {
       isRemoteAction.current = false;
     });
 
-    autoSaveTimer.current = setInterval(() => {
-      saveToServer();
-      if (socketRef.current) {
-        socketRef.current.emit("canvas:sync", {
-          canvas_json: JSON.stringify(fc.toJSON()),
-          overlay_data: JSON.stringify(tablesRef.current),
-        });
-      }
-    }, 30000);
-
     return () => {
       window.removeEventListener("resize", handleResize);
       document.removeEventListener("paste", handlePaste);
       document.removeEventListener("keydown", handleKeyDown);
-      if (autoSaveTimer.current) clearInterval(autoSaveTimer.current);
+      canvasEl?.removeEventListener("touchmove", handleTouchMove);
+      canvasEl?.removeEventListener("touchend", handleTouchEnd);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       socket.disconnect();
       fc.dispose();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── Undo/Redo refs ───
+  undoRef.current = () => {
+    const fc = fabricRef.current;
+    if (!fc || undoStack.length <= 1) return;
+    const newUndo = [...undoStack];
+    const cur = newUndo.pop()!;
+    setRedoStack((p) => [...p, cur]);
+    setUndoStack(newUndo);
+    const prev = newUndo[newUndo.length - 1];
+    if (prev) {
+      isRemoteAction.current = true;
+      fc.loadFromJSON(JSON.parse(prev)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
+    }
+  };
+  redoRef.current = () => {
+    const fc = fabricRef.current;
+    if (!fc || redoStack.length === 0) return;
+    const newRedo = [...redoStack];
+    const next = newRedo.pop()!;
+    setRedoStack(newRedo);
+    setUndoStack((p) => [...p, next]);
+    isRemoteAction.current = true;
+    fc.loadFromJSON(JSON.parse(next)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
+  };
+
   // ─── 도구 변경 ───
   useEffect(() => {
     const fc = fabricRef.current;
     if (!fc) return;
-
     fc.isDrawingMode = false;
     fc.selection = true;
     fc.defaultCursor = "default";
@@ -351,7 +410,7 @@ export default function MemoCanvas() {
       brush.color = bgColor;
       brush.width = 20;
       fc.freeDrawingBrush = brush;
-    } else if (activeTool === "text" || activeTool === "pin" || activeTool === "table" || activeTool === "image") {
+    } else if (["text", "pin", "table", "image"].includes(activeTool)) {
       fc.selection = false;
       fc.defaultCursor = "crosshair";
     }
@@ -382,11 +441,11 @@ export default function MemoCanvas() {
         text.enterEditing();
         fc.renderAll();
         saveSnapshot();
+        scheduleSave();
         emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
         setActiveTool("select");
       } else if (activeTool === "pin") {
-        const pinW = 320;
-        const pinH = 180;
+        const pinW = 320, pinH = 180;
         const bg = new Rect({ width: pinW, height: pinH, fill: "#fffde7", rx: 12, ry: 12, stroke: "#fdd835", strokeWidth: 2 });
         const label = new IText("📌 메모", { left: 16, top: 14, fontSize: 18, fill: "#f57f17", fontWeight: "bold", fontFamily: "sans-serif" });
         const body = new IText("", { left: 16, top: 48, fontSize: 15, fill: "#333333", fontFamily: "sans-serif", width: pinW - 32 });
@@ -396,6 +455,7 @@ export default function MemoCanvas() {
         fc.setActiveObject(group);
         fc.renderAll();
         saveSnapshot();
+        scheduleSave();
         emitIfLocal("object:added", { id: getObjId(group), data: group.toJSON() });
         setActiveTool("select");
       } else if (activeTool === "table") {
@@ -404,7 +464,8 @@ export default function MemoCanvas() {
           rows: [["", "", ""], ["", "", ""], ["", "", ""]],
           headerColor: "#3b82f6",
         };
-        setTables((prev) => [...prev, newTable]);
+        setTables((p) => [...p, newTable]);
+        scheduleSave();
         emitIfLocal("table:added", newTable);
         setActiveTool("select");
       } else if (activeTool === "image") {
@@ -416,8 +477,7 @@ export default function MemoCanvas() {
           if (!file) return;
           const reader = new FileReader();
           reader.onload = () => {
-            const dataUrl = reader.result as string;
-            FabricImage.fromURL(dataUrl).then((img) => {
+            FabricImage.fromURL(reader.result as string).then((img) => {
               if (img.width && img.width > 800) img.scaleToWidth(800);
               img.set({ left: pointer.x, top: pointer.y });
               setObjId(img);
@@ -425,6 +485,7 @@ export default function MemoCanvas() {
               fc.setActiveObject(img);
               fc.renderAll();
               saveSnapshot();
+              scheduleSave();
               emitIfLocal("object:added", { id: getObjId(img), data: img.toJSON() });
             });
           };
@@ -437,134 +498,65 @@ export default function MemoCanvas() {
 
     fc.on("mouse:down", handleMouseDown);
     return () => { fc.off("mouse:down", handleMouseDown); };
-  }, [activeTool, penColor, saveSnapshot, emitIfLocal]);
+  }, [activeTool, penColor, saveSnapshot, scheduleSave, emitIfLocal]);
 
-  // ─── Undo/Redo ───
-  undoRef.current = () => {
-    const fc = fabricRef.current;
-    if (!fc || undoStack.length <= 1) return;
-    const newUndo = [...undoStack];
-    const current = newUndo.pop()!;
-    setRedoStack((prev) => [...prev, current]);
-    setUndoStack(newUndo);
-    const prevState = newUndo[newUndo.length - 1];
-    if (prevState) {
-      isRemoteAction.current = true;
-      fc.loadFromJSON(JSON.parse(prevState)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
-    }
-  };
-  redoRef.current = () => {
-    const fc = fabricRef.current;
-    if (!fc || redoStack.length === 0) return;
-    const newRedo = [...redoStack];
-    const nextState = newRedo.pop()!;
-    setRedoStack(newRedo);
-    setUndoStack((prev) => [...prev, nextState]);
-    isRemoteAction.current = true;
-    fc.loadFromJSON(JSON.parse(nextState)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
-  };
-
-  const handleUndo = useCallback(() => {
-    const fc = fabricRef.current;
-    if (!fc || undoStack.length <= 1) return;
-    const newUndo = [...undoStack];
-    const current = newUndo.pop()!;
-    setRedoStack((prev) => [...prev, current]);
-    setUndoStack(newUndo);
-    const prevState = newUndo[newUndo.length - 1];
-    if (prevState) {
-      isRemoteAction.current = true;
-      fc.loadFromJSON(JSON.parse(prevState)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
-    }
-  }, [undoStack]);
-
-  const handleRedo = useCallback(() => {
-    const fc = fabricRef.current;
-    if (!fc || redoStack.length === 0) return;
-    const newRedo = [...redoStack];
-    const nextState = newRedo.pop()!;
-    setRedoStack(newRedo);
-    setUndoStack((prev) => [...prev, nextState]);
-    isRemoteAction.current = true;
-    fc.loadFromJSON(JSON.parse(nextState)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
-  }, [redoStack]);
+  const handleUndo = useCallback(() => undoRef.current(), []);
+  const handleRedo = useCallback(() => redoRef.current(), []);
 
   const handleTableUpdate = useCallback((updated: TableData) => {
-    setTables((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setTables((p) => p.map((t) => (t.id === updated.id ? updated : t)));
+    scheduleSave();
     emitIfLocal("table:update", updated);
-  }, [emitIfLocal]);
+  }, [scheduleSave, emitIfLocal]);
 
   const handleTableRemove = useCallback((id: string) => {
-    setTables((prev) => prev.filter((t) => t.id !== id));
+    setTables((p) => p.filter((t) => t.id !== id));
+    scheduleSave();
     emitIfLocal("table:removed", { id });
-  }, [emitIfLocal]);
-
-  const handleSave = useCallback(async () => {
-    await saveToServer();
-    const fc = fabricRef.current;
-    if (fc && socketRef.current) {
-      socketRef.current.emit("canvas:sync", {
-        canvas_json: JSON.stringify(fc.toJSON()),
-        overlay_data: JSON.stringify(tablesRef.current),
-      });
-    }
-  }, [saveToServer]);
+  }, [scheduleSave, emitIfLocal]);
 
   const handleClear = useCallback(async () => {
     if (!confirm("메모판을 전체삭제 하시겠습니까?")) return;
     const fc = fabricRef.current;
-    if (fc) { fc.clear(); fc.backgroundColor = "#ffffff"; fc.renderAll(); }
+    if (fc) { fc.clear(); fc.backgroundColor = isDark ? "#1e1e2e" : "#ffffff"; fc.renderAll(); }
     setTables([]);
-    setBgColor("#ffffff");
     setUndoStack([]);
     setRedoStack([]);
     socketRef.current?.emit("canvas:clear");
     try { await fetch("/api/memo/clear", { method: "POST" }); } catch { /* ignore */ }
-  }, []);
+  }, [isDark]);
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-white dark:bg-[#121218]">
       {/* ─── 상단 헤더 ─── */}
-      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-8 bg-white dark:bg-[#1a1a2e] border-b border-gray-200 dark:border-[#333]" style={{ height: HEADER_H }}>
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-6 bg-white/95 dark:bg-[#1a1a2e]/95 backdrop-blur border-b border-gray-200 dark:border-[#333]" style={{ height: HEADER_H }}>
         <div className="flex items-center gap-4">
           <a
             href="http://192.168.107.6:3501"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-900/20 transition-colors"
             title="쿠라레 메인 포탈"
           >
-            <Home size={22} />
-            <span className="text-sm font-medium hidden sm:inline">메인 포탈</span>
+            <Home size={20} />
+            <span className="text-sm font-medium">메인 포탈</span>
           </a>
-          <div className="w-px h-6 bg-gray-200 dark:bg-[#444]" />
-          <span className="text-lg font-bold text-gray-800 dark:text-white">메모장</span>
+          <div className="w-px h-5 bg-gray-200 dark:bg-[#444]" />
+          <span className="text-base font-bold text-gray-800 dark:text-white tracking-tight">메모장</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-          >
-            <Save size={16} />
-            저장
-          </button>
-          <button
-            onClick={handleClear}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-          >
-            <Trash2 size={16} />
-            전체삭제
-          </button>
-        </div>
+        <button
+          onClick={handleClear}
+          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-[#555] rounded hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-900/20 dark:hover:text-red-400 dark:hover:border-red-800 transition-all"
+        >
+          <Trash2 size={14} />
+          전체삭제
+        </button>
       </div>
 
-      {/* Fabric.js 캔버스 */}
       <canvas ref={canvasRef} className="absolute left-0" style={{ top: HEADER_H }} />
 
-      {/* 테이블 오버레이 */}
       {tables.map((table) => (
         <TableOverlay key={table.id} table={table} onUpdate={handleTableUpdate} onRemove={handleTableRemove} />
       ))}
 
-      {/* 플로팅 툴바 */}
       <FloatingToolbar
         activeTool={activeTool} onToolChange={setActiveTool}
         penColor={penColor} onPenColorChange={setPenColor}

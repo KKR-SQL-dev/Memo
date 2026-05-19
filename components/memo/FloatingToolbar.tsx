@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   MousePointer2, Type, Table2, Pin, ImagePlus, Pencil, Eraser,
-  Palette, PaintBucket, Undo2, Redo2, Sun, Moon,
+  Palette, PaintBucket, Undo2, Redo2, Sun, Moon, GripVertical,
 } from "lucide-react";
 import ColorPicker from "./ColorPicker";
 
@@ -33,6 +33,48 @@ export default function FloatingToolbar({
 }: FloatingToolbarProps) {
   const [showPenColor, setShowPenColor] = useState(false);
   const [showBgColor, setShowBgColor] = useState(false);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  // 초기 위치 설정 (하단 중앙)
+  useEffect(() => {
+    if (!barRef.current) return;
+    const rect = barRef.current.getBoundingClientRect();
+    setPos({ x: (window.innerWidth - rect.width) / 2, y: window.innerHeight - rect.height - 24 });
+  }, []);
+
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const cur = pos || { x: 0, y: 0 };
+    dragRef.current = { startX: clientX, startY: clientY, origX: cur.x, origY: cur.y };
+    setIsDragging(true);
+
+    const handleMove = (ev: MouseEvent | TouchEvent) => {
+      if (!dragRef.current) return;
+      const cx = "touches" in ev ? ev.touches[0].clientX : ev.clientX;
+      const cy = "touches" in ev ? ev.touches[0].clientY : ev.clientY;
+      setPos({
+        x: dragRef.current.origX + cx - dragRef.current.startX,
+        y: dragRef.current.origY + cy - dragRef.current.startY,
+      });
+    };
+    const handleUp = () => {
+      dragRef.current = null;
+      setIsDragging(false);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("touchmove", handleMove);
+      window.removeEventListener("touchend", handleUp);
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    window.addEventListener("touchmove", handleMove);
+    window.addEventListener("touchend", handleUp);
+  }, [pos]);
 
   const ICON = 24;
 
@@ -52,7 +94,20 @@ export default function FloatingToolbar({
   );
 
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-4 py-3 bg-white/95 dark:bg-[#1e1e2e]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-[#444]">
+    <div
+      ref={barRef}
+      className="absolute z-50 flex items-center gap-1.5 px-4 py-3 bg-white/95 dark:bg-[#1e1e2e]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-[#444]"
+      style={pos ? { left: pos.x, top: pos.y, cursor: isDragging ? "grabbing" : undefined } : { bottom: 24, left: "50%", transform: "translateX(-50%)" }}
+    >
+      {/* 드래그 핸들 */}
+      <div
+        className="flex items-center justify-center cursor-grab active:cursor-grabbing px-1 py-2 -ml-1 mr-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+        onMouseDown={handleDragStart}
+        onTouchStart={handleDragStart}
+        title="드래그하여 이동"
+      >
+        <GripVertical size={18} />
+      </div>
       {toolBtn("select", MousePointer2, "선택")}
       {toolBtn("text", Type, "텍스트")}
       {toolBtn("table", Table2, "테이블")}
