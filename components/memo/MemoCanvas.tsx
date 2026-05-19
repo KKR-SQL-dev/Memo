@@ -676,11 +676,11 @@ export default function MemoCanvas() {
             </div>
             <div className="w-px h-5 bg-gray-300 dark:bg-[#555]" />
             <div className="flex items-center gap-1">
-              {["#000000", "#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"].map((c) => (
+              {["#1f2937", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"].map((c) => (
                 <button
                   key={c}
                   onClick={() => setPenColor(c)}
-                  className={`w-6 h-6 rounded-full border-2 transition-transform ${penColor === c ? "border-blue-500 scale-110" : "border-gray-300 dark:border-gray-600 hover:scale-110"}`}
+                  className={`w-6 h-6 rounded-full border-2 transition-colors ${penColor === c ? "border-blue-500 ring-1 ring-blue-300/50" : "border-gray-300 dark:border-gray-600 hover:border-gray-400"}`}
                   style={{ backgroundColor: c }}
                 />
               ))}
@@ -789,7 +789,7 @@ export default function MemoCanvas() {
 
           {/* Colors */}
           <div className="flex items-center gap-1">
-            {["#000000", "#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"].map((c) => (
+            {["#1f2937", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"].map((c) => (
               <button
                 key={c}
                 onClick={() => {
@@ -800,7 +800,7 @@ export default function MemoCanvas() {
                   emitIfLocal("object:modified", { id: getObjId(obj), data: obj.toJSON() });
                   setSelectedTextInfo({ ...selectedTextInfo });
                 }}
-                className={`w-6 h-6 rounded-full border-2 transition-transform ${String(selectedTextInfo.obj.fill) === c ? "border-blue-500 scale-110" : "border-gray-300 dark:border-gray-600 hover:scale-110"}`}
+                className={`w-6 h-6 rounded-full border-2 transition-colors ${String(selectedTextInfo.obj.fill) === c ? "border-blue-500 ring-1 ring-blue-300/50" : "border-gray-300 dark:border-gray-600 hover:border-gray-400"}`}
                 style={{ backgroundColor: c }}
               />
             ))}

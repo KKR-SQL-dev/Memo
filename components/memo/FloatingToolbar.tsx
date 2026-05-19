@@ -86,10 +86,10 @@ export default function FloatingToolbar({
     <button
       key={tool}
       onClick={() => onToolChange(tool)}
-      className={`p-3 rounded-xl transition-all ${
+      className={`p-3 rounded-xl transition-colors ${
         activeTool === tool
-          ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30 scale-105"
-          : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105"
+          ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30"
+          : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"
       }`}
       title={label}
     >
@@ -124,10 +124,10 @@ export default function FloatingToolbar({
       <div className="relative">
         <button
           onClick={() => { onToolChange("eraser"); setShowEraserSize(!showEraserSize); setShowPenColor(false); setShowBgColor(false); }}
-          className={`p-3 rounded-xl transition-all ${
+          className={`p-3 rounded-xl transition-colors ${
             activeTool === "eraser"
-              ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30 scale-105"
-              : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105"
+              ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30"
+              : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"
           }`}
           title="지우개"
         >
@@ -163,7 +163,7 @@ export default function FloatingToolbar({
       <div className="relative">
         <button
           onClick={() => { setShowPenColor(!showPenColor); setShowBgColor(false); }}
-          className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105 transition-all"
+          className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
           title="글자색"
         >
           <Palette size={ICON} />
@@ -175,7 +175,7 @@ export default function FloatingToolbar({
       <div className="relative">
         <button
           onClick={() => { setShowBgColor(!showBgColor); setShowPenColor(false); }}
-          className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105 transition-all"
+          className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
           title="배경색"
         >
           <PaintBucket size={ICON} />
@@ -189,7 +189,7 @@ export default function FloatingToolbar({
       <button
         onClick={onUndo}
         disabled={!canUndo}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105 transition-all disabled:opacity-30 disabled:hover:scale-100"
+        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
         title="되돌리기 (Ctrl+Z)"
       >
         <Undo2 size={ICON} />
@@ -197,7 +197,7 @@ export default function FloatingToolbar({
       <button
         onClick={onRedo}
         disabled={!canRedo}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105 transition-all disabled:opacity-30 disabled:hover:scale-100"
+        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
         title="다시실행 (Ctrl+Y)"
       >
         <Redo2 size={ICON} />
@@ -210,7 +210,7 @@ export default function FloatingToolbar({
           // Windows 터치 키보드(TabTip.exe) 실행
           fetch("/api/keyboard", { method: "POST" });
         }}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105 transition-all"
+        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
         title="가상 키보드"
       >
         <Keyboard size={ICON} />
@@ -218,7 +218,7 @@ export default function FloatingToolbar({
 
       <button
         onClick={onToggleDark}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105 transition-all"
+        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
         title={isDark ? "라이트 모드" : "다크 모드"}
       >
         {isDark ? <Sun size={ICON} /> : <Moon size={ICON} />}

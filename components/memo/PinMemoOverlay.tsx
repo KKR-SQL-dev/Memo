@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { X, Bold, Italic, Underline, ChevronDown } from "lucide-react";
+import { X, Bold, Italic, Underline, ChevronDown, Pin } from "lucide-react";
 
 export interface PinMemoData {
   id: string;
@@ -22,8 +22,8 @@ interface PinMemoOverlayProps {
   onRemove: (id: string) => void;
 }
 
-const COLORS = ["#374151", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899"];
-const SIZES = [12, 14, 16, 20, 24];
+const COLORS = ["#4b5563", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"];
+const SIZES = [14, 16, 20, 24, 28];
 
 export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOverlayProps) {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
@@ -31,11 +31,11 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
-  const fontSize = memo.fontSize || 14;
+  const fontSize = memo.fontSize || 16;
   const fontWeight = memo.fontWeight || "normal";
   const fontStyle = memo.fontStyle || "normal";
   const textDecoration = memo.textDecoration || "none";
-  const color = memo.color || "#374151";
+  const color = memo.color || "#4b5563";
 
   const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if ((e.target as HTMLElement).closest("textarea, input, button")) return;
@@ -72,69 +72,69 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
       onMouseDown={handleDragStart}
       onTouchStart={handleDragStart}
     >
-      <div className="w-72 bg-[#fffde7] rounded-xl shadow-lg border border-yellow-300 overflow-hidden">
+      <div className="w-80 bg-amber-50 dark:bg-[#2a2a35] rounded-xl shadow-lg border border-amber-200 dark:border-[#3a3a45] overflow-hidden">
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-3 py-2 bg-yellow-100/80 border-b border-yellow-200">
-          <div className="flex items-center gap-1.5">
-            <span className="text-base">📌</span>
+        <div className="flex items-center justify-between px-4 py-2.5 bg-amber-100/60 dark:bg-[#32323e] border-b border-amber-200 dark:border-[#3a3a45]">
+          <div className="flex items-center gap-2">
+            <Pin size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
             <input
               type="text"
               value={memo.title}
               onChange={(e) => onUpdate({ ...memo, title: e.target.value })}
-              className="bg-transparent border-none outline-none text-sm font-bold text-yellow-800 w-36 placeholder-yellow-600/50"
+              className="bg-transparent border-none outline-none text-base font-semibold text-amber-900 dark:text-amber-100 w-44 placeholder-amber-400/60 dark:placeholder-amber-500/40"
               placeholder="제목"
             />
           </div>
           <button
             onClick={() => onRemove(memo.id)}
-            className="opacity-0 group-hover:opacity-100 p-1 text-yellow-600 hover:text-red-500 transition-all"
+            className="opacity-0 group-hover:opacity-100 p-1.5 text-amber-500 dark:text-amber-400 hover:text-red-400 transition-colors"
           >
-            <X size={14} />
+            <X size={16} />
           </button>
         </div>
 
         {/* 서식 도구바 */}
-        <div className="flex items-center gap-1 px-2 py-1.5 bg-yellow-50/80 border-b border-yellow-200">
+        <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50/60 dark:bg-[#2e2e3a] border-b border-amber-200 dark:border-[#3a3a45]">
           {/* Bold */}
           <button
             onClick={() => onUpdate({ ...memo, fontWeight: fontWeight === "bold" ? "normal" : "bold" })}
-            className={`p-1 rounded transition-colors ${fontWeight === "bold" ? "bg-yellow-400/60 text-yellow-900" : "text-yellow-700 hover:bg-yellow-200/60"}`}
+            className={`p-1.5 rounded-md transition-colors ${fontWeight === "bold" ? "bg-amber-300/50 dark:bg-amber-600/30 text-amber-900 dark:text-amber-200" : "text-amber-700 dark:text-amber-300 hover:bg-amber-200/50 dark:hover:bg-[#3a3a45]"}`}
           >
-            <Bold size={14} />
+            <Bold size={16} />
           </button>
           {/* Italic */}
           <button
             onClick={() => onUpdate({ ...memo, fontStyle: fontStyle === "italic" ? "normal" : "italic" })}
-            className={`p-1 rounded transition-colors ${fontStyle === "italic" ? "bg-yellow-400/60 text-yellow-900" : "text-yellow-700 hover:bg-yellow-200/60"}`}
+            className={`p-1.5 rounded-md transition-colors ${fontStyle === "italic" ? "bg-amber-300/50 dark:bg-amber-600/30 text-amber-900 dark:text-amber-200" : "text-amber-700 dark:text-amber-300 hover:bg-amber-200/50 dark:hover:bg-[#3a3a45]"}`}
           >
-            <Italic size={14} />
+            <Italic size={16} />
           </button>
           {/* Underline */}
           <button
             onClick={() => onUpdate({ ...memo, textDecoration: textDecoration === "underline" ? "none" : "underline" })}
-            className={`p-1 rounded transition-colors ${textDecoration === "underline" ? "bg-yellow-400/60 text-yellow-900" : "text-yellow-700 hover:bg-yellow-200/60"}`}
+            className={`p-1.5 rounded-md transition-colors ${textDecoration === "underline" ? "bg-amber-300/50 dark:bg-amber-600/30 text-amber-900 dark:text-amber-200" : "text-amber-700 dark:text-amber-300 hover:bg-amber-200/50 dark:hover:bg-[#3a3a45]"}`}
           >
-            <Underline size={14} />
+            <Underline size={16} />
           </button>
 
-          <div className="w-px h-4 bg-yellow-300 mx-0.5" />
+          <div className="w-px h-5 bg-amber-300/60 dark:bg-[#444] mx-0.5" />
 
           {/* Font Size */}
           <div className="relative">
             <button
               onClick={() => setShowSizeMenu(!showSizeMenu)}
-              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs text-yellow-800 hover:bg-yellow-200/60 transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-sm text-amber-800 dark:text-amber-200 hover:bg-amber-200/50 dark:hover:bg-[#3a3a45] transition-colors"
             >
               {fontSize}px
-              <ChevronDown size={10} />
+              <ChevronDown size={12} />
             </button>
             {showSizeMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-yellow-300 py-1 z-50">
+              <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[#2a2a3e] rounded-lg shadow-lg border border-amber-200 dark:border-[#444] py-1 z-50">
                 {SIZES.map((s) => (
                   <button
                     key={s}
                     onClick={() => { onUpdate({ ...memo, fontSize: s }); setShowSizeMenu(false); }}
-                    className={`block w-full px-3 py-1 text-left text-xs hover:bg-yellow-100 transition-colors ${fontSize === s ? "font-bold text-yellow-800 bg-yellow-50" : "text-gray-700"}`}
+                    className={`block w-full px-4 py-1.5 text-left text-sm hover:bg-amber-100 dark:hover:bg-[#333] transition-colors ${fontSize === s ? "font-semibold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-[#333]" : "text-gray-600 dark:text-gray-300"}`}
                   >
                     {s}px
                   </button>
@@ -143,15 +143,15 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
             )}
           </div>
 
-          <div className="w-px h-4 bg-yellow-300 mx-0.5" />
+          <div className="w-px h-5 bg-amber-300/60 dark:bg-[#444] mx-0.5" />
 
           {/* Colors */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-1">
             {COLORS.map((c) => (
               <button
                 key={c}
                 onClick={() => onUpdate({ ...memo, color: c })}
-                className={`w-4 h-4 rounded-full border transition-transform ${color === c ? "border-yellow-700 scale-125" : "border-yellow-400 hover:scale-110"}`}
+                className={`w-5 h-5 rounded-full border-2 transition-colors ${color === c ? "border-amber-700 dark:border-amber-300 ring-1 ring-amber-400/50" : "border-amber-300/60 dark:border-[#555] hover:border-amber-400 dark:hover:border-amber-400"}`}
                 style={{ backgroundColor: c }}
               />
             ))}
@@ -169,7 +169,7 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
               bodyRef.current.style.height = bodyRef.current.scrollHeight + "px";
             }
           }}
-          className="w-full px-3 py-2 bg-transparent border-none outline-none resize-none placeholder-yellow-600/40"
+          className="w-full px-4 py-3 bg-transparent border-none outline-none resize-none text-gray-700 dark:text-gray-200 placeholder-amber-400/40 dark:placeholder-amber-500/30"
           style={{
             minHeight: 60,
             fontSize,

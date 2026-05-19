@@ -3,9 +3,8 @@
 import { useRef, useEffect } from "react";
 
 const PRESET_COLORS = [
-  "#000000", "#ffffff", "#ef4444", "#f97316", "#eab308", "#22c55e",
-  "#3b82f6", "#8b5cf6", "#ec4899", "#6b7280", "#78716c", "#0ea5e9",
-  "#14b8a6", "#a3e635", "#fbbf24", "#f87171", "#c084fc", "#fb923c",
+  "#1f2937", "#ffffff", "#c07070", "#d4956b", "#b8a060",
+  "#6ba37a", "#6b8db5", "#8b7ab5", "#b57b9d", "#8b8b8b",
 ];
 
 interface ColorPickerProps {
@@ -32,13 +31,13 @@ export default function ColorPicker({ color, onChange, onClose }: ColorPickerPro
       ref={ref}
       className="absolute bottom-full mb-3 p-4 bg-white dark:bg-[#2a2a3e] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#444] z-50"
     >
-      <div className="grid grid-cols-6 gap-2 mb-3">
+      <div className="grid grid-cols-5 gap-2 mb-3">
         {PRESET_COLORS.map((c) => (
           <button
             key={c}
             onClick={() => { onChange(c); onClose(); }}
-            className={`w-9 h-9 rounded-lg border-2 transition-all hover:scale-115 ${
-              color === c ? "border-blue-500 scale-110 shadow-md" : "border-gray-200 dark:border-[#555]"
+            className={`w-9 h-9 rounded-lg border-2 transition-colors ${
+              color === c ? "border-blue-500 shadow-md ring-1 ring-blue-300/50" : "border-gray-200 dark:border-[#555] hover:border-gray-400 dark:hover:border-gray-400"
             }`}
             style={{ backgroundColor: c }}
             title={c}
