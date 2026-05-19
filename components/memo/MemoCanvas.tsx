@@ -87,7 +87,7 @@ export default function MemoCanvas() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       const fc = fabricRef.current;
-      if (!fc) return;
+      if (!fc || !fc.getContext()) return;
       try {
         const payload = {
           canvas_json: JSON.stringify(fc.toJSON()),
@@ -128,6 +128,7 @@ export default function MemoCanvas() {
       selection: true,
     });
     fabricRef.current = fc;
+    let disposed = false;
 
     const handleResize = () => {
       fc.setDimensions({ width: window.innerWidth, height: window.innerHeight - HEADER_H });
@@ -252,9 +253,11 @@ export default function MemoCanvas() {
     fetch("/api/memo")
       .then((r) => r.json())
       .then((data) => {
+        if (disposed) return;
         if (data.canvas_json) {
           try {
             fc.loadFromJSON(JSON.parse(data.canvas_json)).then(() => {
+              if (disposed) return;
               fc.getObjects().forEach((obj) => {
                 const j = obj.toJSON() as { _customId?: string };
                 if (j._customId) setObjId(obj, j._customId);
@@ -276,11 +279,13 @@ export default function MemoCanvas() {
     socketRef.current = socket;
 
     socket.on("canvas:state", (data) => {
+      if (disposed) return;
       isRemoteAction.current = true;
       if (data.canvas_json) {
         try {
           const parsed = typeof data.canvas_json === "string" ? JSON.parse(data.canvas_json) : data.canvas_json;
           fc.loadFromJSON(parsed).then(() => {
+            if (disposed) return;
             fc.getObjects().forEach((obj) => {
               const j = obj.toJSON() as { _customId?: string };
               if (j._customId) setObjId(obj, j._customId);
@@ -298,8 +303,10 @@ export default function MemoCanvas() {
     });
 
     socket.on("object:added", (data) => {
+      if (disposed) return;
       isRemoteAction.current = true;
       fc.loadFromJSON({ version: fc.toJSON().version, objects: [data.data] }).then(() => {
+        if (disposed) return;
         const objs = fc.getObjects();
         if (objs.length) setObjId(objs[objs.length - 1], data.id);
         fc.renderAll();
@@ -308,12 +315,14 @@ export default function MemoCanvas() {
     });
 
     socket.on("object:modified", (data) => {
+      if (disposed) return;
       isRemoteAction.current = true;
       const target = fc.getObjects().find((o) => getObjId(o) === data.id);
       if (target) {
         const idx = fc.getObjects().indexOf(target);
         fc.remove(target);
         fc.loadFromJSON({ version: fc.toJSON().version, objects: [data.data] }).then(() => {
+          if (disposed) return;
           const objs = fc.getObjects();
           const n = objs[objs.length - 1];
           if (n) { setObjId(n, data.id); if (idx < objs.length - 1) fc.moveObjectTo(n, idx); }
@@ -324,6 +333,7 @@ export default function MemoCanvas() {
     });
 
     socket.on("object:removed", (data) => {
+      if (disposed) return;
       isRemoteAction.current = true;
       const t = fc.getObjects().find((o) => getObjId(o) === data.id);
       if (t) { fc.remove(t); fc.renderAll(); }
@@ -331,8 +341,10 @@ export default function MemoCanvas() {
     });
 
     socket.on("drawing:path", (data) => {
+      if (disposed) return;
       isRemoteAction.current = true;
       fc.loadFromJSON({ version: fc.toJSON().version, objects: [data.data] }).then(() => {
+        if (disposed) return;
         const objs = fc.getObjects();
         if (objs.length) setObjId(objs[objs.length - 1], data.id);
         fc.renderAll();
@@ -345,6 +357,7 @@ export default function MemoCanvas() {
     socket.on("table:removed", (d) => setTables((p) => p.filter((t) => t.id !== d.id)));
 
     socket.on("canvas:clear", () => {
+      if (disposed) return;
       isRemoteAction.current = true;
       fc.clear();
       fc.backgroundColor = "#ffffff";
@@ -354,6 +367,7 @@ export default function MemoCanvas() {
     });
 
     return () => {
+      disposed = true;
       window.removeEventListener("resize", handleResize);
       document.removeEventListener("paste", handlePaste);
       document.removeEventListener("keydown", handleKeyDown);

@@ -102,8 +102,10 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
   };
 
   const colCount = table.rows[0]?.length || 3;
-  const cellW = Math.max(60, (table.width - 2) / colCount);
-  const rowH = Math.max(32, (table.height - 2) / table.rows.length);
+  const tableW = table.width || 400;
+  const tableH = table.height || 140;
+  const cellW = Math.max(60, (tableW - 2) / colCount);
+  const rowH = Math.max(32, table.rows.length > 0 ? (tableH - 2) / table.rows.length : 32);
 
   return (
     <div
