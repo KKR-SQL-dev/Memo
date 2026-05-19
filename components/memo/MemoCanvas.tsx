@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Canvas, IText, FabricImage, PencilBrush, FabricObject, Point } from "fabric";
+import { Canvas, IText, FabricImage, PencilBrush, FabricObject, Point, util } from "fabric";
 import { io, Socket } from "socket.io-client";
 import { Home, Trash2 } from "lucide-react";
 import FloatingToolbar, { type ToolType } from "./FloatingToolbar";
@@ -35,11 +35,19 @@ export default function MemoCanvas() {
 
   const [activeTool, setActiveTool] = useState<ToolType>("select");
   const [penColor, setPenColor] = useState("#000000");
-  const [bgColor, setBgColor] = useState("#ffffff");
+  const [bgColor, setBgColor] = useState(() => {
+    if (typeof window === "undefined") return "#ffffff";
+    return localStorage.getItem("memo-theme") === "dark" ? "#1e1e2e" : "#ffffff";
+  });
   const [tables, setTables] = useState<TableData[]>([]);
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const dark = localStorage.getItem("memo-theme") === "dark";
+    if (dark) document.documentElement.classList.add("dark");
+    return dark;
+  });
   const [eraserSize, setEraserSize] = useState(25);
   const [textInput, setTextInput] = useState<{ x: number; y: number; sceneX: number; sceneY: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -53,6 +61,8 @@ export default function MemoCanvas() {
   } | null>(null);
   const pinMemosRef = useRef<PinMemoData[]>([]);
   pinMemosRef.current = pinMemos;
+  const isDarkRef = useRef(isDark);
+  isDarkRef.current = isDark;
 
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
@@ -78,14 +88,6 @@ export default function MemoCanvas() {
     });
   }, []);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("memo-theme");
-    if (saved === "dark") {
-      setIsDark(true);
-      setBgColor("#1e1e2e");
-      document.documentElement.classList.add("dark");
-    }
-  }, []);
 
   // ─── 스냅샷 ───
   const saveSnapshot = useCallback(() => {
@@ -179,17 +181,49 @@ export default function MemoCanvas() {
     const handleBeforeUnload = () => { flushRef.current(); };
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-    // ─── 마우스 휠 줌 ───
+    // ─── 마우스 휠 줌 & 가로 스크롤 ───
     fc.on("mouse:wheel", (opt) => {
       const e = opt.e as WheelEvent;
       e.preventDefault();
       e.stopPropagation();
-      const delta = e.deltaY;
-      let zoom = fc.getZoom();
-      zoom *= 0.999 ** delta;
-      if (zoom > 5) zoom = 5;
-      if (zoom < 0.3) zoom = 0.3;
-      fc.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
+      if (e.altKey) {
+        // Alt+휠 → 가로 스크롤
+        fc.relativePan(new Point(-e.deltaY, 0));
+      } else {
+        const delta = e.deltaY;
+        let zoom = fc.getZoom();
+        zoom *= 0.999 ** delta;
+        if (zoom > 5) zoom = 5;
+        if (zoom < 0.3) zoom = 0.3;
+        fc.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
+      }
+    });
+
+    // ─── 캔버스 패닝 (Alt+드래그 / 가운데 버튼 드래그) ───
+    let isPanning = false;
+    let panLastPos = { x: 0, y: 0 };
+    fc.on("mouse:down", (opt) => {
+      const e = opt.e as MouseEvent;
+      if (e.altKey || e.button === 1) {
+        isPanning = true;
+        panLastPos = { x: e.clientX, y: e.clientY };
+        fc.selection = false;
+        fc.defaultCursor = "grab";
+        e.preventDefault();
+      }
+    });
+    fc.on("mouse:move", (opt) => {
+      if (!isPanning) return;
+      const e = opt.e as MouseEvent;
+      fc.relativePan(new Point(e.clientX - panLastPos.x, e.clientY - panLastPos.y));
+      panLastPos = { x: e.clientX, y: e.clientY };
+      fc.defaultCursor = "grabbing";
+    });
+    fc.on("mouse:up", () => {
+      if (!isPanning) return;
+      isPanning = false;
+      fc.selection = true;
+      fc.defaultCursor = "default";
     });
 
     // ─── Fabric 이벤트 ───
@@ -270,6 +304,12 @@ export default function MemoCanvas() {
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
       if (e.ctrlKey && e.key === "z") { e.preventDefault(); undoRef.current(); return; }
       if (e.ctrlKey && e.key === "y") { e.preventDefault(); redoRef.current(); return; }
+      if (e.ctrlKey && e.key === "0") {
+        e.preventDefault();
+        const fc2 = fabricRef.current;
+        if (fc2) { fc2.setViewportTransform([1, 0, 0, 1, 0, 0]); fc2.renderAll(); }
+        return;
+      }
       if (e.key === "Delete" || e.key === "Backspace") {
         const active = fc.getActiveObjects();
         if (active.length > 0) {
@@ -286,26 +326,30 @@ export default function MemoCanvas() {
     };
     document.addEventListener("keydown", handleKeyDown);
 
-    // ─── 터치 핀치 줌 ───
+    // ─── 터치 핀치 줌 + 패닝 ───
     let lastDist = 0;
+    let lastCenter = { x: 0, y: 0 };
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         e.preventDefault();
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         if (lastDist > 0) {
           let zoom = fc.getZoom() * (dist / lastDist);
           if (zoom > 5) zoom = 5;
           if (zoom < 0.3) zoom = 0.3;
-          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
           fc.zoomToPoint(new Point(cx, cy - HEADER_H), zoom);
+          // 두 손가락 동시 패닝
+          fc.relativePan(new Point(cx - lastCenter.x, cy - lastCenter.y));
         }
         lastDist = dist;
+        lastCenter = { x: cx, y: cy };
       }
     };
-    const handleTouchEnd = () => { lastDist = 0; };
+    const handleTouchEnd = () => { lastDist = 0; lastCenter = { x: 0, y: 0 }; };
     const canvasEl = fc.getSelectionElement();
     canvasEl?.addEventListener("touchmove", handleTouchMove, { passive: false });
     canvasEl?.addEventListener("touchend", handleTouchEnd);
@@ -346,6 +390,13 @@ export default function MemoCanvas() {
     socket.on("canvas:state", (data) => {
       if (disposed) return;
       isRemoteAction.current = true;
+      if (data.overlay_data) {
+        try {
+          const overlay = typeof data.overlay_data === "string" ? JSON.parse(data.overlay_data) : data.overlay_data;
+          if (Array.isArray(overlay)) { setTables(overlay); }
+          else { setTables(overlay.tables || []); setPinMemos(overlay.pins || []); }
+        } catch { /* ignore */ }
+      }
       if (data.canvas_json) {
         try {
           const parsed = typeof data.canvas_json === "string" ? JSON.parse(data.canvas_json) : data.canvas_json;
@@ -356,29 +407,27 @@ export default function MemoCanvas() {
               if (j._customId) setObjId(obj, j._customId);
             });
             fc.renderAll();
-          });
-        } catch { /* ignore */ }
+            isRemoteAction.current = false;
+          }).catch(() => { isRemoteAction.current = false; });
+        } catch { isRemoteAction.current = false; }
+      } else {
+        isRemoteAction.current = false;
       }
-      if (data.overlay_data) {
-        try {
-          const overlay = typeof data.overlay_data === "string" ? JSON.parse(data.overlay_data) : data.overlay_data;
-          if (Array.isArray(overlay)) { setTables(overlay); }
-          else { setTables(overlay.tables || []); setPinMemos(overlay.pins || []); }
-        } catch { /* ignore */ }
-      }
-      isRemoteAction.current = false;
     });
 
     socket.on("object:added", (data) => {
       if (disposed) return;
       isRemoteAction.current = true;
-      fc.loadFromJSON({ version: fc.toJSON().version, objects: [data.data] }).then(() => {
+      util.enlivenObjects([data.data]).then((objects) => {
         if (disposed) return;
-        const objs = fc.getObjects();
-        if (objs.length) setObjId(objs[objs.length - 1], data.id);
-        fc.renderAll();
-      });
-      isRemoteAction.current = false;
+        const obj = objects[0] as FabricObject;
+        if (obj) {
+          setObjId(obj, data.id);
+          fc.add(obj);
+          fc.renderAll();
+        }
+        isRemoteAction.current = false;
+      }).catch(() => { isRemoteAction.current = false; });
     });
 
     socket.on("object:modified", (data) => {
@@ -388,15 +437,20 @@ export default function MemoCanvas() {
       if (target) {
         const idx = fc.getObjects().indexOf(target);
         fc.remove(target);
-        fc.loadFromJSON({ version: fc.toJSON().version, objects: [data.data] }).then(() => {
+        util.enlivenObjects([data.data]).then((objects) => {
           if (disposed) return;
-          const objs = fc.getObjects();
-          const n = objs[objs.length - 1];
-          if (n) { setObjId(n, data.id); if (idx < objs.length - 1) fc.moveObjectTo(n, idx); }
-          fc.renderAll();
-        });
+          const obj = objects[0] as FabricObject;
+          if (obj) {
+            setObjId(obj, data.id);
+            fc.add(obj);
+            if (idx < fc.getObjects().length - 1) fc.moveObjectTo(obj, idx);
+            fc.renderAll();
+          }
+          isRemoteAction.current = false;
+        }).catch(() => { isRemoteAction.current = false; });
+      } else {
+        isRemoteAction.current = false;
       }
-      isRemoteAction.current = false;
     });
 
     socket.on("object:removed", (data) => {
@@ -410,13 +464,16 @@ export default function MemoCanvas() {
     socket.on("drawing:path", (data) => {
       if (disposed) return;
       isRemoteAction.current = true;
-      fc.loadFromJSON({ version: fc.toJSON().version, objects: [data.data] }).then(() => {
+      util.enlivenObjects([data.data]).then((objects) => {
         if (disposed) return;
-        const objs = fc.getObjects();
-        if (objs.length) setObjId(objs[objs.length - 1], data.id);
-        fc.renderAll();
-      });
-      isRemoteAction.current = false;
+        const obj = objects[0] as FabricObject;
+        if (obj) {
+          setObjId(obj, data.id);
+          fc.add(obj);
+          fc.renderAll();
+        }
+        isRemoteAction.current = false;
+      }).catch(() => { isRemoteAction.current = false; });
     });
 
     socket.on("table:added", (d) => setTables((p) => [...p, d]));
@@ -431,7 +488,7 @@ export default function MemoCanvas() {
       if (disposed) return;
       isRemoteAction.current = true;
       fc.clear();
-      fc.backgroundColor = "#ffffff";
+      fc.backgroundColor = isDarkRef.current ? "#1e1e2e" : "#ffffff";
       fc.renderAll();
       setTables([]);
       setPinMemos([]);
@@ -517,6 +574,9 @@ export default function MemoCanvas() {
     if (!fc) return;
 
     const handleMouseDown = (opt: { e: MouseEvent | TouchEvent; scenePoint?: { x: number; y: number }; viewportPoint?: { x: number; y: number } }) => {
+      // 패닝 중 오브젝트 생성 방지
+      const rawE = opt.e as MouseEvent;
+      if (rawE.altKey || rawE.button === 1) return;
       const pointer = opt.scenePoint || opt.viewportPoint;
       if (!pointer) return;
 
