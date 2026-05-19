@@ -736,20 +736,34 @@ export default function MemoCanvas() {
       fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
       fc.renderAll();
     }
-    // 화면 밖 핀메모/테이블을 현재 뷰포트 안으로 이동
+    // 화면 밖 핀메모/테이블을 비율 유지하며 축소
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    setPinMemos((prev) => prev.map((pin) => ({
-      ...pin,
-      x: Math.max(0, Math.min(pin.x, vw - 300)),
-      y: Math.max(HEADER_H, Math.min(pin.y, vh - 100)),
-    })));
-    setTables((prev) => prev.map((t) => ({
-      ...t,
-      x: Math.max(0, Math.min(t.x, vw - t.width)),
-      y: Math.max(HEADER_H, Math.min(t.y, vh - t.height)),
-    })));
-    scheduleSave();
+    let overlayMaxX = 0, overlayMaxY = 0;
+    pinMemosRef.current.forEach((pin) => {
+      overlayMaxX = Math.max(overlayMaxX, pin.x + 288);
+      overlayMaxY = Math.max(overlayMaxY, pin.y + 200);
+    });
+    tablesRef.current.forEach((t) => {
+      overlayMaxX = Math.max(overlayMaxX, t.x + t.width);
+      overlayMaxY = Math.max(overlayMaxY, t.y + t.height);
+    });
+    if (overlayMaxX > vw || overlayMaxY > vh) {
+      const scaleX = overlayMaxX > vw ? (vw - 20) / overlayMaxX : 1;
+      const scaleY = overlayMaxY > vh ? (vh - 20) / overlayMaxY : 1;
+      const scale = Math.min(scaleX, scaleY);
+      setPinMemos((prev) => prev.map((pin) => ({
+        ...pin,
+        x: Math.round(pin.x * scale),
+        y: Math.max(HEADER_H, Math.round(pin.y * scale)),
+      })));
+      setTables((prev) => prev.map((t) => ({
+        ...t,
+        x: Math.round(t.x * scale),
+        y: Math.max(HEADER_H, Math.round(t.y * scale)),
+      })));
+      scheduleSave();
+    }
   }, [scheduleSave]);
 
   const handleZoomIn = useCallback(() => {
