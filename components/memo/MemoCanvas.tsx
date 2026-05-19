@@ -96,12 +96,37 @@ export default function MemoCanvas() {
     setRedoStack([]);
   }, []);
 
-  // ─── 자동저장 (변경 시 3초 뒤 저장) ───
+  // ─── 즉시 저장 (flush) ───
+  const flushSave = useCallback(() => {
+    const fc = fabricRef.current;
+    if (!fc) return;
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    try {
+      const payload = {
+        canvas_json: JSON.stringify(fc.toJSON()),
+        overlay_data: JSON.stringify({ tables: tablesRef.current, pins: pinMemosRef.current }),
+        updated_by: "",
+      };
+      // sendBeacon은 페이지 종료 시에도 확실히 전송됨
+      const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+      navigator.sendBeacon("/api/memo", blob);
+      if (socketRef.current) {
+        socketRef.current.emit("canvas:sync", {
+          canvas_json: payload.canvas_json,
+          overlay_data: payload.overlay_data,
+        });
+      }
+    } catch { /* ignore */ }
+  }, []);
+  const flushRef = useRef(flushSave);
+  flushRef.current = flushSave;
+
+  // ─── 자동저장 (변경 시 1.5초 뒤 저장) ───
   const scheduleSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       const fc = fabricRef.current;
-      if (!fc || !fc.getContext()) return;
+      if (!fc) return;
       try {
         const payload = {
           canvas_json: JSON.stringify(fc.toJSON()),
@@ -122,7 +147,7 @@ export default function MemoCanvas() {
       } catch (err) {
         console.error("Auto-save failed:", err);
       }
-    }, 3000);
+    }, 1500);
   }, []);
 
   const emitIfLocal = useCallback((event: string, data: unknown) => {
@@ -149,6 +174,10 @@ export default function MemoCanvas() {
       fc.renderAll();
     };
     window.addEventListener("resize", handleResize);
+
+    // 페이지 종료/새로고침 시 미저장 데이터 즉시 저장
+    const handleBeforeUnload = () => { flushRef.current(); };
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     // ─── 마우스 휠 줌 ───
     fc.on("mouse:wheel", (opt) => {
@@ -412,6 +441,7 @@ export default function MemoCanvas() {
     return () => {
       disposed = true;
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("paste", handlePaste);
       document.removeEventListener("keydown", handleKeyDown);
       canvasEl?.removeEventListener("touchmove", handleTouchMove);
