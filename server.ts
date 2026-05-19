@@ -2,7 +2,8 @@ import { createServer } from "node:http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
 
-const dev = process.env.NODE_ENV !== "production";
+// start 스크립트에서 항상 production 모드 (dev indicators 제거)
+const dev = false;
 const hostname = "0.0.0.0";
 const port = parseInt(process.env.PORT || "3004", 10);
 

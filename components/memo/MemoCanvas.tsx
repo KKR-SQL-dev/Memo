@@ -543,24 +543,24 @@ export default function MemoCanvas() {
   return (
     <div className="relative w-full h-screen overflow-hidden bg-white dark:bg-[#121218]">
       {/* ─── 상단 헤더 ─── */}
-      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-6 bg-white/95 dark:bg-[#1a1a2e]/95 backdrop-blur border-b border-gray-200 dark:border-[#333]" style={{ height: HEADER_H }}>
-        <div className="flex items-center gap-4">
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-10" style={{ height: HEADER_H }}>
+        <div className="flex items-center gap-3">
           <a
             href="http://192.168.107.6:3501"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-900/20 transition-colors"
+            className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
             title="쿠라레 메인 포탈"
           >
-            <Home size={20} />
-            <span className="text-sm font-medium">메인 포탈</span>
+            <Home size={16} />
+            <span>메인 포탈</span>
           </a>
-          <div className="w-px h-5 bg-gray-200 dark:bg-[#444]" />
-          <span className="text-base font-bold text-gray-800 dark:text-white tracking-tight">메모장</span>
+          <span className="text-gray-300 dark:text-gray-600">/</span>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">메모장</span>
         </div>
         <button
           onClick={handleClear}
-          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-[#555] rounded hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-900/20 dark:hover:text-red-400 dark:hover:border-red-800 transition-all"
+          className="flex items-center gap-1.5 px-3 py-1 text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
         >
-          <Trash2 size={14} />
+          <Trash2 size={13} />
           전체삭제
         </button>
       </div>
