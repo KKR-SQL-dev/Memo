@@ -44,8 +44,13 @@ export default function MemoCanvas() {
   const [textInput, setTextInput] = useState<{ x: number; y: number; sceneX: number; sceneY: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [textBold, setTextBold] = useState(false);
+  const [textItalic, setTextItalic] = useState(false);
+  const [textUnderline, setTextUnderline] = useState(false);
   const [textSize, setTextSize] = useState(24);
   const [pinMemos, setPinMemos] = useState<PinMemoData[]>([]);
+  const [selectedTextInfo, setSelectedTextInfo] = useState<{
+    obj: IText; x: number; y: number;
+  } | null>(null);
   const pinMemosRef = useRef<PinMemoData[]>([]);
   pinMemosRef.current = pinMemos;
 
@@ -171,6 +176,24 @@ export default function MemoCanvas() {
       scheduleSave();
       emitIfLocal("object:removed", { id: getObjId(e.target) });
     });
+
+    // ─── 텍스트 선택 시 서식 도구바 표시 ───
+    const updateSelectedText = () => {
+      const active = fc.getActiveObject();
+      if (active && active.type === "i-text") {
+        const bound = active.getBoundingRect();
+        setSelectedTextInfo({
+          obj: active as IText,
+          x: bound.left + bound.width / 2,
+          y: bound.top - 10,
+        });
+      } else {
+        setSelectedTextInfo(null);
+      }
+    };
+    fc.on("selection:created", updateSelectedText);
+    fc.on("selection:updated", updateSelectedText);
+    fc.on("selection:cleared", () => setSelectedTextInfo(null));
 
     fc.on("path:created", (e) => {
       const path = (e as unknown as { path: FabricObject }).path;
@@ -393,6 +416,9 @@ export default function MemoCanvas() {
       document.removeEventListener("keydown", handleKeyDown);
       canvasEl?.removeEventListener("touchmove", handleTouchMove);
       canvasEl?.removeEventListener("touchend", handleTouchEnd);
+      fc.off("selection:created", updateSelectedText);
+      fc.off("selection:updated", updateSelectedText);
+      fc.off("selection:cleared");
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       socket.disconnect();
       fc.dispose();
@@ -541,6 +567,8 @@ export default function MemoCanvas() {
       left: textInput.sceneX, top: textInput.sceneY, fontSize: textSize,
       fill: penColor, fontFamily: "sans-serif", editable: true,
       fontWeight: textBold ? "bold" : "normal",
+      fontStyle: textItalic ? "italic" : "normal",
+      underline: textUnderline,
     });
     setObjId(text);
     fc.add(text);
@@ -551,7 +579,7 @@ export default function MemoCanvas() {
     emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
     setTextInput(null);
     setActiveTool("select");
-  }, [textInput, penColor, textSize, textBold, saveSnapshot, scheduleSave, emitIfLocal]);
+  }, [textInput, penColor, textSize, textBold, textItalic, textUnderline, saveSnapshot, scheduleSave, emitIfLocal]);
 
   const handleTableUpdate = useCallback((updated: TableData) => {
     setTables((p) => p.map((t) => (t.id === updated.id ? updated : t)));
@@ -628,6 +656,15 @@ export default function MemoCanvas() {
               onClick={() => setTextBold(!textBold)}
               className={`px-2 py-0.5 rounded text-sm font-bold transition-colors ${textBold ? "bg-blue-500 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"}`}
             >B</button>
+            <button
+              onClick={() => setTextItalic(!textItalic)}
+              className={`px-2 py-0.5 rounded text-sm italic transition-colors ${textItalic ? "bg-blue-500 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"}`}
+            >I</button>
+            <button
+              onClick={() => setTextUnderline(!textUnderline)}
+              className={`px-2 py-0.5 rounded text-sm underline transition-colors ${textUnderline ? "bg-blue-500 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"}`}
+            >U</button>
+            <div className="w-px h-5 bg-gray-300 dark:bg-[#555]" />
             <div className="flex items-center gap-1">
               {[16, 20, 24, 32, 40].map((s) => (
                 <button
@@ -639,11 +676,11 @@ export default function MemoCanvas() {
             </div>
             <div className="w-px h-5 bg-gray-300 dark:bg-[#555]" />
             <div className="flex items-center gap-1">
-              {["#000000", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"].map((c) => (
+              {["#000000", "#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"].map((c) => (
                 <button
                   key={c}
                   onClick={() => setPenColor(c)}
-                  className={`w-6 h-6 rounded-full border-2 transition-transform ${penColor === c ? "border-blue-500 scale-110" : "border-transparent hover:scale-110"}`}
+                  className={`w-6 h-6 rounded-full border-2 transition-transform ${penColor === c ? "border-blue-500 scale-110" : "border-gray-300 dark:border-gray-600 hover:scale-110"}`}
                   style={{ backgroundColor: c }}
                 />
               ))}
@@ -660,6 +697,8 @@ export default function MemoCanvas() {
               minHeight: 40,
               fontSize: textSize,
               fontWeight: textBold ? "bold" : "normal",
+              fontStyle: textItalic ? "italic" : "normal",
+              textDecoration: textUnderline ? "underline" : "none",
               color: penColor,
               fontFamily: "sans-serif",
             }}
@@ -671,6 +710,101 @@ export default function MemoCanvas() {
             placeholder="텍스트 입력..."
             inputMode="text"
           />
+        </div>
+      )}
+
+      {/* 선택된 텍스트 서식 도구바 */}
+      {selectedTextInfo && (
+        <div
+          className="absolute z-50 flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-[#2a2a3e] rounded-lg shadow-lg border border-gray-200 dark:border-[#444]"
+          style={{
+            left: Math.max(10, Math.min(selectedTextInfo.x, window.innerWidth - 400)),
+            top: Math.max(HEADER_H + 4, selectedTextInfo.y - 44),
+            transform: "translateX(-50%)",
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {/* Bold */}
+          <button
+            onClick={() => {
+              const obj = selectedTextInfo.obj;
+              const next = obj.fontWeight === "bold" ? "normal" : "bold";
+              obj.set("fontWeight", next);
+              fabricRef.current?.renderAll();
+              saveSnapshot(); scheduleSave();
+              emitIfLocal("object:modified", { id: getObjId(obj), data: obj.toJSON() });
+              setSelectedTextInfo({ ...selectedTextInfo });
+            }}
+            className={`px-2 py-0.5 rounded text-sm font-bold transition-colors ${selectedTextInfo.obj.fontWeight === "bold" ? "bg-blue-500 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"}`}
+          >B</button>
+          {/* Italic */}
+          <button
+            onClick={() => {
+              const obj = selectedTextInfo.obj;
+              const next = obj.fontStyle === "italic" ? "normal" : "italic";
+              obj.set("fontStyle", next);
+              fabricRef.current?.renderAll();
+              saveSnapshot(); scheduleSave();
+              emitIfLocal("object:modified", { id: getObjId(obj), data: obj.toJSON() });
+              setSelectedTextInfo({ ...selectedTextInfo });
+            }}
+            className={`px-2 py-0.5 rounded text-sm italic transition-colors ${selectedTextInfo.obj.fontStyle === "italic" ? "bg-blue-500 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"}`}
+          >I</button>
+          {/* Underline */}
+          <button
+            onClick={() => {
+              const obj = selectedTextInfo.obj;
+              obj.set("underline", !obj.underline);
+              fabricRef.current?.renderAll();
+              saveSnapshot(); scheduleSave();
+              emitIfLocal("object:modified", { id: getObjId(obj), data: obj.toJSON() });
+              setSelectedTextInfo({ ...selectedTextInfo });
+            }}
+            className={`px-2 py-0.5 rounded text-sm underline transition-colors ${selectedTextInfo.obj.underline ? "bg-blue-500 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"}`}
+          >U</button>
+
+          <div className="w-px h-5 bg-gray-300 dark:bg-[#555]" />
+
+          {/* Font Size */}
+          <div className="flex items-center gap-1">
+            {[16, 20, 24, 32, 40].map((s) => (
+              <button
+                key={s}
+                onClick={() => {
+                  const obj = selectedTextInfo.obj;
+                  obj.set("fontSize", s);
+                  fabricRef.current?.renderAll();
+                  saveSnapshot(); scheduleSave();
+                  emitIfLocal("object:modified", { id: getObjId(obj), data: obj.toJSON() });
+                  // 위치 재계산
+                  const bound = obj.getBoundingRect();
+                  setSelectedTextInfo({ obj, x: bound.left + bound.width / 2, y: bound.top - 10 });
+                }}
+                className={`w-7 h-7 rounded text-xs transition-colors ${selectedTextInfo.obj.fontSize === s ? "bg-blue-500 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"}`}
+              >{s}</button>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-gray-300 dark:bg-[#555]" />
+
+          {/* Colors */}
+          <div className="flex items-center gap-1">
+            {["#000000", "#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"].map((c) => (
+              <button
+                key={c}
+                onClick={() => {
+                  const obj = selectedTextInfo.obj;
+                  obj.set("fill", c);
+                  fabricRef.current?.renderAll();
+                  saveSnapshot(); scheduleSave();
+                  emitIfLocal("object:modified", { id: getObjId(obj), data: obj.toJSON() });
+                  setSelectedTextInfo({ ...selectedTextInfo });
+                }}
+                className={`w-6 h-6 rounded-full border-2 transition-transform ${String(selectedTextInfo.obj.fill) === c ? "border-blue-500 scale-110" : "border-gray-300 dark:border-gray-600 hover:scale-110"}`}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
         </div>
       )}
 
