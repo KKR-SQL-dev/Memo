@@ -42,25 +42,27 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: 서버 백그라운드 시작
+:: 서버 백그라운드 시작 (PowerShell로 독립 프로세스 생성)
 echo.
 echo [4/4] Starting server in background...
-echo.
+powershell -Command "Start-Process -FilePath 'node' -ArgumentList '--import','tsx','server.ts' -WorkingDirectory '%~dp0' -WindowStyle Hidden -RedirectStandardOutput '%~dp0server.log' -RedirectStandardError '%~dp0server-error.log'"
 
-:: VBS로 백그라운드 실행 (창 닫아도 서버 유지)
-echo Set WshShell = CreateObject("WScript.Shell") > "%~dp0_start_bg.vbs"
-echo WshShell.CurrentDirectory = "%~dp0" >> "%~dp0_start_bg.vbs"
-echo WshShell.Run "cmd /c npm run start > server.log 2>&1", 0, False >> "%~dp0_start_bg.vbs"
+:: 서버 뜰 때까지 잠깐 대기
+timeout /t 3 /nobreak >nul
 
-cscript //nologo "%~dp0_start_bg.vbs"
-del "%~dp0_start_bg.vbs"
+:: 확인
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3004 " ^| findstr "LISTENING"') do (
+    echo.
+    echo ========================================
+    echo   Server running on port 3004 [PID: %%a]
+    echo   Background mode - safe to close
+    echo   Log: server.log
+    echo   Stop: stop.bat
+    echo ========================================
+    timeout /t 3
+    exit /b 0
+)
 
 echo.
-echo ========================================
-echo   Server started on port 3004
-echo   Running in background (safe to close)
-echo   Log: %~dp0server.log
-echo   Stop: stop.bat
-echo ========================================
-echo.
-timeout /t 5
+echo [ERROR] Server failed to start. Check server-error.log
+pause
