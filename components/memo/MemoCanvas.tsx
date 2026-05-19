@@ -63,6 +63,8 @@ export default function MemoCanvas() {
   pinMemosRef.current = pinMemos;
   const isDarkRef = useRef(isDark);
   isDarkRef.current = isDark;
+  const activeToolRef = useRef(activeTool);
+  activeToolRef.current = activeTool;
 
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
@@ -199,16 +201,16 @@ export default function MemoCanvas() {
       }
     });
 
-    // ─── 캔버스 패닝 (Alt+드래그 / 가운데 버튼 드래그) ───
+    // ─── 캔버스 패닝 (Alt+드래그 / 가운데 버튼 / 손바닥 도구) ───
     let isPanning = false;
     let panLastPos = { x: 0, y: 0 };
     fc.on("mouse:down", (opt) => {
       const e = opt.e as MouseEvent;
-      if (e.altKey || e.button === 1) {
+      if (e.altKey || e.button === 1 || activeToolRef.current === "hand") {
         isPanning = true;
         panLastPos = { x: e.clientX, y: e.clientY };
         fc.selection = false;
-        fc.defaultCursor = "grab";
+        fc.defaultCursor = "grabbing";
         e.preventDefault();
       }
     });
@@ -217,13 +219,16 @@ export default function MemoCanvas() {
       const e = opt.e as MouseEvent;
       fc.relativePan(new Point(e.clientX - panLastPos.x, e.clientY - panLastPos.y));
       panLastPos = { x: e.clientX, y: e.clientY };
-      fc.defaultCursor = "grabbing";
     });
     fc.on("mouse:up", () => {
       if (!isPanning) return;
       isPanning = false;
-      fc.selection = true;
-      fc.defaultCursor = "default";
+      if (activeToolRef.current === "hand") {
+        fc.defaultCursor = "grab";
+      } else {
+        fc.selection = true;
+        fc.defaultCursor = "default";
+      }
     });
 
     // ─── Fabric 이벤트 ───
@@ -559,6 +564,9 @@ export default function MemoCanvas() {
       brush.color = bgColor;
       brush.width = eraserSize;
       fc.freeDrawingBrush = brush;
+    } else if (activeTool === "hand") {
+      fc.selection = false;
+      fc.defaultCursor = "grab";
     } else if (["text", "pin", "table", "image"].includes(activeTool)) {
       fc.selection = false;
       fc.defaultCursor = "crosshair";
@@ -578,7 +586,7 @@ export default function MemoCanvas() {
     const handleMouseDown = (opt: { e: MouseEvent | TouchEvent; scenePoint?: { x: number; y: number }; viewportPoint?: { x: number; y: number } }) => {
       // 패닝 중 오브젝트 생성 방지
       const rawE = opt.e as MouseEvent;
-      if (rawE.altKey || rawE.button === 1) return;
+      if (rawE.altKey || rawE.button === 1 || activeTool === "hand") return;
       const pointer = opt.scenePoint || opt.viewportPoint;
       if (!pointer) return;
 
@@ -701,33 +709,63 @@ export default function MemoCanvas() {
     const fc = fabricRef.current;
     if (!fc) return;
     const objects = fc.getObjects();
-    if (objects.length === 0) {
+    // 캔버스 오브젝트 전체보기
+    if (objects.length > 0) {
+      fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      objects.forEach((obj) => {
+        const bound = obj.getBoundingRect();
+        minX = Math.min(minX, bound.left);
+        minY = Math.min(minY, bound.top);
+        maxX = Math.max(maxX, bound.left + bound.width);
+        maxY = Math.max(maxY, bound.top + bound.height);
+      });
+      const padding = 60;
+      const contentW = (maxX - minX) + padding * 2;
+      const contentH = (maxY - minY) + padding * 2;
+      const canvasW = fc.getWidth();
+      const canvasH = fc.getHeight();
+      const zoom = Math.min(canvasW / contentW, canvasH / contentH, 1);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const panX = canvasW / 2 - zoom * centerX;
+      const panY = canvasH / 2 - zoom * centerY;
+      fc.setViewportTransform([zoom, 0, 0, zoom, panX, panY]);
+      fc.renderAll();
+    } else {
       fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
       fc.renderAll();
-      return;
     }
-    // 뷰포트 리셋 후 실제 씬 좌표 계산
-    fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    objects.forEach((obj) => {
-      const bound = obj.getBoundingRect();
-      minX = Math.min(minX, bound.left);
-      minY = Math.min(minY, bound.top);
-      maxX = Math.max(maxX, bound.left + bound.width);
-      maxY = Math.max(maxY, bound.top + bound.height);
-    });
-    const padding = 60;
-    const contentW = (maxX - minX) + padding * 2;
-    const contentH = (maxY - minY) + padding * 2;
-    const canvasW = fc.getWidth();
-    const canvasH = fc.getHeight();
-    const zoom = Math.min(canvasW / contentW, canvasH / contentH, 1);
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    const panX = canvasW / 2 - zoom * centerX;
-    const panY = canvasH / 2 - zoom * centerY;
-    fc.setViewportTransform([zoom, 0, 0, zoom, panX, panY]);
-    fc.renderAll();
+    // 화면 밖 핀메모/테이블을 현재 뷰포트 안으로 이동
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    setPinMemos((prev) => prev.map((pin) => ({
+      ...pin,
+      x: Math.max(0, Math.min(pin.x, vw - 300)),
+      y: Math.max(HEADER_H, Math.min(pin.y, vh - 100)),
+    })));
+    setTables((prev) => prev.map((t) => ({
+      ...t,
+      x: Math.max(0, Math.min(t.x, vw - t.width)),
+      y: Math.max(HEADER_H, Math.min(t.y, vh - t.height)),
+    })));
+    scheduleSave();
+  }, [scheduleSave]);
+
+  const handleZoomIn = useCallback(() => {
+    const fc = fabricRef.current;
+    if (!fc) return;
+    let zoom = fc.getZoom() * 1.2;
+    if (zoom > 5) zoom = 5;
+    fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    const fc = fabricRef.current;
+    if (!fc) return;
+    let zoom = fc.getZoom() / 1.2;
+    if (zoom < 0.3) zoom = 0.3;
+    fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
   }, []);
 
   const handleClear = useCallback(async () => {
@@ -959,6 +997,7 @@ export default function MemoCanvas() {
         eraserSize={eraserSize} onEraserSizeChange={setEraserSize}
         canUndo={undoStack.length > 1} canRedo={redoStack.length > 0}
         onUndo={handleUndo} onRedo={handleRedo}
+        onZoomIn={handleZoomIn} onZoomOut={handleZoomOut}
         isDark={isDark} onToggleDark={toggleDark}
       />
     </div>

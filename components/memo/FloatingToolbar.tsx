@@ -4,10 +4,11 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   MousePointer2, Type, Table2, Pin, ImagePlus, Pencil, Eraser,
   Palette, PaintBucket, Undo2, Redo2, Sun, Moon, GripVertical, Keyboard,
+  Hand, ZoomIn, ZoomOut,
 } from "lucide-react";
 import ColorPicker from "./ColorPicker";
 
-export type ToolType = "select" | "text" | "table" | "pin" | "image" | "pen" | "eraser";
+export type ToolType = "select" | "hand" | "text" | "table" | "pin" | "image" | "pen" | "eraser";
 
 interface FloatingToolbarProps {
   activeTool: ToolType;
@@ -22,6 +23,8 @@ interface FloatingToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
   isDark: boolean;
   onToggleDark: () => void;
 }
@@ -32,6 +35,7 @@ export default function FloatingToolbar({
   bgColor, onBgColorChange,
   eraserSize, onEraserSizeChange,
   canUndo, canRedo, onUndo, onRedo,
+  onZoomIn, onZoomOut,
   isDark, onToggleDark,
 }: FloatingToolbarProps) {
   const [showPenColor, setShowPenColor] = useState(false);
@@ -113,6 +117,7 @@ export default function FloatingToolbar({
         <GripVertical size={18} />
       </div>
       {toolBtn("select", MousePointer2, "선택")}
+      {toolBtn("hand", Hand, "화면 이동")}
       {toolBtn("text", Type, "텍스트")}
       {toolBtn("table", Table2, "테이블")}
       {toolBtn("pin", Pin, "고정 메모")}
@@ -201,6 +206,23 @@ export default function FloatingToolbar({
         title="다시실행 (Ctrl+Y)"
       >
         <Redo2 size={ICON} />
+      </button>
+
+      <div className="w-px h-8 bg-gray-300 dark:bg-[#555] mx-1.5" />
+
+      <button
+        onClick={onZoomOut}
+        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+        title="축소"
+      >
+        <ZoomOut size={ICON} />
+      </button>
+      <button
+        onClick={onZoomIn}
+        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+        title="확대"
+      >
+        <ZoomIn size={ICON} />
       </button>
 
       <div className="w-px h-8 bg-gray-300 dark:bg-[#555] mx-1.5" />
