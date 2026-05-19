@@ -374,11 +374,11 @@ export default function MemoCanvas() {
         emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
         setActiveTool("select");
       } else if (activeTool === "pin") {
-        const pinW = 280;
-        const pinH = 140;
+        const pinW = 320;
+        const pinH = 180;
         const bg = new Rect({ width: pinW, height: pinH, fill: "#fffde7", rx: 12, ry: 12, stroke: "#fdd835", strokeWidth: 2 });
         const label = new IText("📌 메모", { left: 16, top: 14, fontSize: 18, fill: "#f57f17", fontWeight: "bold", fontFamily: "sans-serif" });
-        const body = new IText("", { left: 16, top: 44, fontSize: 15, fill: "#333333", fontFamily: "sans-serif", width: pinW - 32 });
+        const body = new IText("", { left: 16, top: 48, fontSize: 15, fill: "#333333", fontFamily: "sans-serif", width: pinW - 32 });
         const group = new Group([bg, label, body], { left: pointer.x, top: pointer.y, subTargetCheck: true, interactive: true });
         setObjId(group);
         fc.add(group);
