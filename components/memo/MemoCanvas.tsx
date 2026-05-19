@@ -39,6 +39,7 @@ export default function MemoCanvas() {
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
   const [isDark, setIsDark] = useState(false);
+  const [eraserSize, setEraserSize] = useState(25);
 
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
@@ -422,13 +423,13 @@ export default function MemoCanvas() {
       fc.isDrawingMode = true;
       const brush = new PencilBrush(fc);
       brush.color = bgColor;
-      brush.width = 20;
+      brush.width = eraserSize;
       fc.freeDrawingBrush = brush;
     } else if (["text", "pin", "table", "image"].includes(activeTool)) {
       fc.selection = false;
       fc.defaultCursor = "crosshair";
     }
-  }, [activeTool, penColor, bgColor]);
+  }, [activeTool, penColor, bgColor, eraserSize]);
 
   useEffect(() => {
     const fc = fabricRef.current;
@@ -440,8 +441,8 @@ export default function MemoCanvas() {
     const fc = fabricRef.current;
     if (!fc) return;
 
-    const handleMouseDown = (opt: { e: MouseEvent | TouchEvent; absolutePointer?: { x: number; y: number } }) => {
-      const pointer = opt.absolutePointer || fc.getViewportPoint(opt.e as MouseEvent);
+    const handleMouseDown = (opt: { e: MouseEvent | TouchEvent; scenePoint?: { x: number; y: number }; viewportPoint?: { x: number; y: number } }) => {
+      const pointer = opt.scenePoint || opt.viewportPoint;
       if (!pointer) return;
 
       if (activeTool === "text") {
@@ -573,6 +574,7 @@ export default function MemoCanvas() {
         activeTool={activeTool} onToolChange={setActiveTool}
         penColor={penColor} onPenColorChange={setPenColor}
         bgColor={bgColor} onBgColorChange={setBgColor}
+        eraserSize={eraserSize} onEraserSizeChange={setEraserSize}
         canUndo={undoStack.length > 1} canRedo={redoStack.length > 0}
         onUndo={handleUndo} onRedo={handleRedo}
         isDark={isDark} onToggleDark={toggleDark}

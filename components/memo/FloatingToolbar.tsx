@@ -16,6 +16,8 @@ interface FloatingToolbarProps {
   onPenColorChange: (color: string) => void;
   bgColor: string;
   onBgColorChange: (color: string) => void;
+  eraserSize: number;
+  onEraserSizeChange: (size: number) => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -28,11 +30,13 @@ export default function FloatingToolbar({
   activeTool, onToolChange,
   penColor, onPenColorChange,
   bgColor, onBgColorChange,
+  eraserSize, onEraserSizeChange,
   canUndo, canRedo, onUndo, onRedo,
   isDark, onToggleDark,
 }: FloatingToolbarProps) {
   const [showPenColor, setShowPenColor] = useState(false);
   const [showBgColor, setShowBgColor] = useState(false);
+  const [showEraserSize, setShowEraserSize] = useState(false);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
@@ -117,7 +121,41 @@ export default function FloatingToolbar({
       <div className="w-px h-8 bg-gray-300 dark:bg-[#555] mx-1.5" />
 
       {toolBtn("pen", Pencil, "펜")}
-      {toolBtn("eraser", Eraser, "지우개")}
+      <div className="relative">
+        <button
+          onClick={() => { onToolChange("eraser"); setShowEraserSize(!showEraserSize); setShowPenColor(false); setShowBgColor(false); }}
+          className={`p-3 rounded-xl transition-all ${
+            activeTool === "eraser"
+              ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30 scale-105"
+              : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105"
+          }`}
+          title="지우개"
+        >
+          <Eraser size={ICON} />
+        </button>
+        {showEraserSize && activeTool === "eraser" && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 flex items-end gap-3 px-4 py-3 bg-white dark:bg-[#2a2a3e] rounded-xl shadow-xl border border-gray-200 dark:border-[#444]">
+            {[
+              { size: 10, label: "S", display: 12 },
+              { size: 25, label: "M", display: 18 },
+              { size: 50, label: "L", display: 26 },
+              { size: 80, label: "XL", display: 34 },
+            ].map((opt) => (
+              <button
+                key={opt.size}
+                onClick={() => { onEraserSizeChange(opt.size); setShowEraserSize(false); }}
+                className={`flex flex-col items-center gap-1.5 transition-all ${eraserSize === opt.size ? "opacity-100" : "opacity-50 hover:opacity-80"}`}
+              >
+                <div
+                  className={`rounded-full ${eraserSize === opt.size ? "bg-blue-500" : "bg-gray-400 dark:bg-gray-500"}`}
+                  style={{ width: opt.display, height: opt.display }}
+                />
+                <span className="text-[10px] text-gray-500 dark:text-gray-400">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="w-px h-8 bg-gray-300 dark:bg-[#555] mx-1.5" />
 
