@@ -43,6 +43,8 @@ export default function MemoCanvas() {
   const [eraserSize, setEraserSize] = useState(25);
   const [textInput, setTextInput] = useState<{ x: number; y: number; sceneX: number; sceneY: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [textBold, setTextBold] = useState(false);
+  const [textSize, setTextSize] = useState(24);
   const [pinMemos, setPinMemos] = useState<PinMemoData[]>([]);
   const pinMemosRef = useRef<PinMemoData[]>([]);
   pinMemosRef.current = pinMemos;
@@ -536,8 +538,9 @@ export default function MemoCanvas() {
     const fc = fabricRef.current;
     if (!fc || !textInput || !value.trim()) { setTextInput(null); return; }
     const text = new IText(value.trim(), {
-      left: textInput.sceneX, top: textInput.sceneY, fontSize: 24,
+      left: textInput.sceneX, top: textInput.sceneY, fontSize: textSize,
       fill: penColor, fontFamily: "sans-serif", editable: true,
+      fontWeight: textBold ? "bold" : "normal",
     });
     setObjId(text);
     fc.add(text);
@@ -548,7 +551,7 @@ export default function MemoCanvas() {
     emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
     setTextInput(null);
     setActiveTool("select");
-  }, [textInput, penColor, saveSnapshot, scheduleSave, emitIfLocal]);
+  }, [textInput, penColor, textSize, textBold, saveSnapshot, scheduleSave, emitIfLocal]);
 
   const handleTableUpdate = useCallback((updated: TableData) => {
     setTables((p) => p.map((t) => (t.id === updated.id ? updated : t)));
@@ -615,15 +618,48 @@ export default function MemoCanvas() {
       {/* 텍스트 입력 오버레이 */}
       {textInput && (
         <div className="absolute inset-0 z-50" onClick={() => commitText(textareaRef.current?.value || "")}>
+          {/* 서식 미니 툴바 */}
+          <div
+            className="absolute flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-[#2a2a3e] rounded-lg shadow-lg border border-gray-200 dark:border-[#444]"
+            style={{ left: textInput.x, top: textInput.y - 44 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setTextBold(!textBold)}
+              className={`px-2 py-0.5 rounded text-sm font-bold transition-colors ${textBold ? "bg-blue-500 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"}`}
+            >B</button>
+            <div className="flex items-center gap-1">
+              {[16, 20, 24, 32, 40].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setTextSize(s)}
+                  className={`w-7 h-7 rounded text-xs transition-colors ${textSize === s ? "bg-blue-500 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"}`}
+                >{s}</button>
+              ))}
+            </div>
+            <div className="w-px h-5 bg-gray-300 dark:bg-[#555]" />
+            <div className="flex items-center gap-1">
+              {["#000000", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"].map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setPenColor(c)}
+                  className={`w-6 h-6 rounded-full border-2 transition-transform ${penColor === c ? "border-blue-500 scale-110" : "border-transparent hover:scale-110"}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
           <textarea
             ref={textareaRef}
             autoFocus
-            className="absolute bg-transparent border-none outline-none resize-none text-2xl caret-blue-500"
+            className="absolute bg-transparent border-none outline-none resize-none caret-blue-500"
             style={{
               left: textInput.x,
               top: textInput.y,
               minWidth: 200,
               minHeight: 40,
+              fontSize: textSize,
+              fontWeight: textBold ? "bold" : "normal",
               color: penColor,
               fontFamily: "sans-serif",
             }}

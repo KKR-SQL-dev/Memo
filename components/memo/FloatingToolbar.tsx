@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   MousePointer2, Type, Table2, Pin, ImagePlus, Pencil, Eraser,
-  Palette, PaintBucket, Undo2, Redo2, Sun, Moon, GripVertical,
+  Palette, PaintBucket, Undo2, Redo2, Sun, Moon, GripVertical, Keyboard,
 } from "lucide-react";
 import ColorPicker from "./ColorPicker";
 
@@ -204,6 +204,22 @@ export default function FloatingToolbar({
       </button>
 
       <div className="w-px h-8 bg-gray-300 dark:bg-[#555] mx-1.5" />
+
+      <button
+        onClick={() => {
+          // 가상 키보드 띄우기: 숨겨진 input에 포커스
+          const tmp = document.createElement("input");
+          tmp.style.cssText = "position:fixed;top:50%;left:50%;opacity:0;width:0;height:0;";
+          tmp.inputMode = "text";
+          document.body.appendChild(tmp);
+          tmp.focus();
+          setTimeout(() => { tmp.remove(); }, 1000);
+        }}
+        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] hover:scale-105 transition-all"
+        title="가상 키보드"
+      >
+        <Keyboard size={ICON} />
+      </button>
 
       <button
         onClick={onToggleDark}
