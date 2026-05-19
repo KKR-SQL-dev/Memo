@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Canvas, IText, FabricImage, PencilBrush, FabricObject, Point, util } from "fabric";
 import { io, Socket } from "socket.io-client";
-import { Home, Trash2 } from "lucide-react";
+import { Home, Trash2, Maximize2 } from "lucide-react";
 import FloatingToolbar, { type ToolType } from "./FloatingToolbar";
 import TableOverlay, { type TableData } from "./TableOverlay";
 import PinMemoOverlay, { type PinMemoData } from "./PinMemoOverlay";
@@ -262,9 +262,10 @@ export default function MemoCanvas() {
       const path = (e as unknown as { path: FabricObject }).path;
       if (path) {
         setObjId(path);
-        saveSnapshot();
-        scheduleSave();
         emitIfLocal("drawing:path", { id: getObjId(path), data: path.toJSON() });
+        scheduleSave();
+        // 스트로크 간 끊김 방지: 스냅샷을 다음 프레임으로 지연
+        requestAnimationFrame(() => saveSnapshot());
       }
     });
 
@@ -550,6 +551,7 @@ export default function MemoCanvas() {
       const brush = new PencilBrush(fc);
       brush.color = penColor;
       brush.width = 3;
+      brush.decimate = 2; // 포인트를 더 많이 유지 → 부드러운 곡선
       fc.freeDrawingBrush = brush;
     } else if (activeTool === "eraser") {
       fc.isDrawingMode = true;
@@ -695,6 +697,39 @@ export default function MemoCanvas() {
     emitIfLocal("pin:removed", { id });
   }, [scheduleSave, emitIfLocal]);
 
+  const handleFitAll = useCallback(() => {
+    const fc = fabricRef.current;
+    if (!fc) return;
+    const objects = fc.getObjects();
+    if (objects.length === 0) {
+      fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      fc.renderAll();
+      return;
+    }
+    // 뷰포트 리셋 후 실제 씬 좌표 계산
+    fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    objects.forEach((obj) => {
+      const bound = obj.getBoundingRect();
+      minX = Math.min(minX, bound.left);
+      minY = Math.min(minY, bound.top);
+      maxX = Math.max(maxX, bound.left + bound.width);
+      maxY = Math.max(maxY, bound.top + bound.height);
+    });
+    const padding = 60;
+    const contentW = (maxX - minX) + padding * 2;
+    const contentH = (maxY - minY) + padding * 2;
+    const canvasW = fc.getWidth();
+    const canvasH = fc.getHeight();
+    const zoom = Math.min(canvasW / contentW, canvasH / contentH, 1);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const panX = canvasW / 2 - zoom * centerX;
+    const panY = canvasH / 2 - zoom * centerY;
+    fc.setViewportTransform([zoom, 0, 0, zoom, panX, panY]);
+    fc.renderAll();
+  }, []);
+
   const handleClear = useCallback(async () => {
     if (!confirm("메모판을 전체삭제 하시겠습니까?")) return;
     const fc = fabricRef.current;
@@ -721,6 +756,15 @@ export default function MemoCanvas() {
         </a>
         <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">메모장</span>
+        <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
+        <button
+          onClick={handleFitAll}
+          className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-sky-500 dark:hover:text-sky-400 transition-colors"
+          title="모든 메모가 보이도록 화면 맞춤"
+        >
+          <Maximize2 size={12} />
+          전체보기
+        </button>
         <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
         <button
           onClick={handleClear}
