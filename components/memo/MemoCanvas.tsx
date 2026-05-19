@@ -52,6 +52,14 @@ export default function MemoCanvas() {
       localStorage.setItem("memo-theme", next ? "dark" : "light");
       if (next) document.documentElement.classList.add("dark");
       else document.documentElement.classList.remove("dark");
+      // 캔버스 배경색도 변경
+      const fc = fabricRef.current;
+      if (fc) {
+        const newBg = next ? "#1e1e2e" : "#ffffff";
+        setBgColor(newBg);
+        fc.backgroundColor = newBg;
+        fc.renderAll();
+      }
       return next;
     });
   }, []);
@@ -60,6 +68,7 @@ export default function MemoCanvas() {
     const saved = localStorage.getItem("memo-theme");
     if (saved === "dark") {
       setIsDark(true);
+      setBgColor("#1e1e2e");
       document.documentElement.classList.add("dark");
     }
   }, []);
@@ -490,7 +499,7 @@ export default function MemoCanvas() {
   return (
     <div className="relative w-full h-screen overflow-hidden bg-white dark:bg-[#121218]">
       {/* ─── 상단 헤더 ─── */}
-      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-5 bg-white dark:bg-[#1a1a2e] border-b border-gray-200 dark:border-[#333]" style={{ height: HEADER_H }}>
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-8 bg-white dark:bg-[#1a1a2e] border-b border-gray-200 dark:border-[#333]" style={{ height: HEADER_H }}>
         <div className="flex items-center gap-4">
           <a
             href="http://192.168.107.6:3501"
