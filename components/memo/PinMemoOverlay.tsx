@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { X, GripHorizontal } from "lucide-react";
+import { X, Bold, Italic, Underline, ChevronDown } from "lucide-react";
 
 export interface PinMemoData {
   id: string;
@@ -9,6 +9,11 @@ export interface PinMemoData {
   y: number;
   title: string;
   body: string;
+  fontSize?: number;
+  fontWeight?: string;
+  fontStyle?: string;
+  textDecoration?: string;
+  color?: string;
 }
 
 interface PinMemoOverlayProps {
@@ -17,10 +22,20 @@ interface PinMemoOverlayProps {
   onRemove: (id: string) => void;
 }
 
+const COLORS = ["#374151", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899"];
+const SIZES = [12, 14, 16, 20, 24];
+
 export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOverlayProps) {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [showSizeMenu, setShowSizeMenu] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  const fontSize = memo.fontSize || 14;
+  const fontWeight = memo.fontWeight || "normal";
+  const fontStyle = memo.fontStyle || "normal";
+  const textDecoration = memo.textDecoration || "none";
+  const color = memo.color || "#374151";
 
   const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if ((e.target as HTMLElement).closest("textarea, input, button")) return;
@@ -77,20 +92,92 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
             <X size={14} />
           </button>
         </div>
+
+        {/* 서식 도구바 */}
+        <div className="flex items-center gap-1 px-2 py-1.5 bg-yellow-50/80 border-b border-yellow-200">
+          {/* Bold */}
+          <button
+            onClick={() => onUpdate({ ...memo, fontWeight: fontWeight === "bold" ? "normal" : "bold" })}
+            className={`p-1 rounded transition-colors ${fontWeight === "bold" ? "bg-yellow-400/60 text-yellow-900" : "text-yellow-700 hover:bg-yellow-200/60"}`}
+          >
+            <Bold size={14} />
+          </button>
+          {/* Italic */}
+          <button
+            onClick={() => onUpdate({ ...memo, fontStyle: fontStyle === "italic" ? "normal" : "italic" })}
+            className={`p-1 rounded transition-colors ${fontStyle === "italic" ? "bg-yellow-400/60 text-yellow-900" : "text-yellow-700 hover:bg-yellow-200/60"}`}
+          >
+            <Italic size={14} />
+          </button>
+          {/* Underline */}
+          <button
+            onClick={() => onUpdate({ ...memo, textDecoration: textDecoration === "underline" ? "none" : "underline" })}
+            className={`p-1 rounded transition-colors ${textDecoration === "underline" ? "bg-yellow-400/60 text-yellow-900" : "text-yellow-700 hover:bg-yellow-200/60"}`}
+          >
+            <Underline size={14} />
+          </button>
+
+          <div className="w-px h-4 bg-yellow-300 mx-0.5" />
+
+          {/* Font Size */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSizeMenu(!showSizeMenu)}
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs text-yellow-800 hover:bg-yellow-200/60 transition-colors"
+            >
+              {fontSize}px
+              <ChevronDown size={10} />
+            </button>
+            {showSizeMenu && (
+              <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-yellow-300 py-1 z-50">
+                {SIZES.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { onUpdate({ ...memo, fontSize: s }); setShowSizeMenu(false); }}
+                    className={`block w-full px-3 py-1 text-left text-xs hover:bg-yellow-100 transition-colors ${fontSize === s ? "font-bold text-yellow-800 bg-yellow-50" : "text-gray-700"}`}
+                  >
+                    {s}px
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="w-px h-4 bg-yellow-300 mx-0.5" />
+
+          {/* Colors */}
+          <div className="flex items-center gap-0.5">
+            {COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => onUpdate({ ...memo, color: c })}
+                className={`w-4 h-4 rounded-full border transition-transform ${color === c ? "border-yellow-700 scale-125" : "border-yellow-400 hover:scale-110"}`}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+        </div>
+
         {/* 본문 */}
         <textarea
           ref={bodyRef}
           value={memo.body}
           onChange={(e) => {
             onUpdate({ ...memo, body: e.target.value });
-            // 자동 높이 조절
             if (bodyRef.current) {
               bodyRef.current.style.height = "auto";
               bodyRef.current.style.height = bodyRef.current.scrollHeight + "px";
             }
           }}
-          className="w-full px-3 py-2 bg-transparent border-none outline-none text-sm text-gray-700 resize-none placeholder-yellow-600/40"
-          style={{ minHeight: 60 }}
+          className="w-full px-3 py-2 bg-transparent border-none outline-none resize-none placeholder-yellow-600/40"
+          style={{
+            minHeight: 60,
+            fontSize,
+            fontWeight,
+            fontStyle,
+            textDecoration,
+            color,
+          }}
           placeholder="메모 입력..."
           inputMode="text"
         />
