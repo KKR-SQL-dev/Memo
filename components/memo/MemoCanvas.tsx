@@ -543,22 +543,20 @@ export default function MemoCanvas() {
   return (
     <div className="relative w-full h-screen overflow-hidden bg-white dark:bg-[#121218]">
       {/* ─── 상단 헤더 ─── */}
-      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-10" style={{ height: HEADER_H }}>
-        <div className="flex items-center gap-3">
-          <a
-            href="http://192.168.107.6:3501"
-            className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
-            title="쿠라레 메인 포탈"
-          >
-            <Home size={16} />
-            <span>메인 포탈</span>
-          </a>
-          <span className="text-gray-300 dark:text-gray-600">/</span>
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">메모장</span>
-        </div>
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center px-20" style={{ height: HEADER_H }}>
+        <a
+          href="http://192.168.107.6:3501"
+          className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-sky-500 dark:hover:text-sky-400 transition-colors"
+          title="쿠라레 메인 포탈"
+        >
+          <Home size={16} className="text-sky-400" />
+          <span>쿠라레 메인 포탈</span>
+        </a>
+        <span className="mx-3 text-gray-300 dark:text-gray-600">/</span>
+        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">메모장</span>
         <button
           onClick={handleClear}
-          className="flex items-center gap-1.5 px-3 py-1 text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+          className="flex items-center gap-1.5 ml-8 px-3 py-1 text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
         >
           <Trash2 size={13} />
           전체삭제
