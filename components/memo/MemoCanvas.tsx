@@ -775,7 +775,9 @@ export default function MemoCanvas() {
         </button>
       </div>
 
-      <canvas ref={canvasRef} className="absolute left-0" style={{ top: HEADER_H }} />
+      <div className="absolute left-0 w-full" style={{ top: HEADER_H, height: `calc(100vh - ${HEADER_H}px)` }}>
+        <canvas ref={canvasRef} />
+      </div>
 
       {/* 텍스트 입력 오버레이 */}
       {textInput && (
