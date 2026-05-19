@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Canvas, IText, FabricImage, PencilBrush, Group, Rect, FabricObject, Point } from "fabric";
+import { Canvas, IText, FabricImage, PencilBrush, FabricObject, Point } from "fabric";
 import { io, Socket } from "socket.io-client";
 import { Home, Trash2 } from "lucide-react";
 import FloatingToolbar, { type ToolType } from "./FloatingToolbar";
 import TableOverlay, { type TableData } from "./TableOverlay";
+import PinMemoOverlay, { type PinMemoData } from "./PinMemoOverlay";
 
 // Fabric.js v6: 커스텀 프로퍼티를 직렬화에 포함
 const CUSTOM_PROPS = ["_customId"];
@@ -40,6 +41,11 @@ export default function MemoCanvas() {
   const [redoStack, setRedoStack] = useState<string[]>([]);
   const [isDark, setIsDark] = useState(false);
   const [eraserSize, setEraserSize] = useState(25);
+  const [textInput, setTextInput] = useState<{ x: number; y: number; sceneX: number; sceneY: number } | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [pinMemos, setPinMemos] = useState<PinMemoData[]>([]);
+  const pinMemosRef = useRef<PinMemoData[]>([]);
+  pinMemosRef.current = pinMemos;
 
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
@@ -92,7 +98,7 @@ export default function MemoCanvas() {
       try {
         const payload = {
           canvas_json: JSON.stringify(fc.toJSON()),
-          overlay_data: JSON.stringify(tablesRef.current),
+          overlay_data: JSON.stringify({ tables: tablesRef.current, pins: pinMemosRef.current }),
           updated_by: "",
         };
         await fetch("/api/memo", {
@@ -270,7 +276,11 @@ export default function MemoCanvas() {
           } catch { /* ignore */ }
         }
         if (data.overlay_data) {
-          try { setTables(JSON.parse(data.overlay_data)); } catch { /* ignore */ }
+          try {
+            const overlay = JSON.parse(data.overlay_data);
+            if (Array.isArray(overlay)) { setTables(overlay); } // 이전 형식 호환
+            else { setTables(overlay.tables || []); setPinMemos(overlay.pins || []); }
+          } catch { /* ignore */ }
         }
       })
       .catch(() => {});
@@ -297,7 +307,9 @@ export default function MemoCanvas() {
       }
       if (data.overlay_data) {
         try {
-          setTables(typeof data.overlay_data === "string" ? JSON.parse(data.overlay_data) : data.overlay_data);
+          const overlay = typeof data.overlay_data === "string" ? JSON.parse(data.overlay_data) : data.overlay_data;
+          if (Array.isArray(overlay)) { setTables(overlay); }
+          else { setTables(overlay.tables || []); setPinMemos(overlay.pins || []); }
         } catch { /* ignore */ }
       }
       isRemoteAction.current = false;
@@ -357,6 +369,10 @@ export default function MemoCanvas() {
     socket.on("table:update", (d) => setTables((p) => p.map((t) => (t.id === d.id ? d : t))));
     socket.on("table:removed", (d) => setTables((p) => p.filter((t) => t.id !== d.id)));
 
+    socket.on("pin:added", (d) => setPinMemos((p) => [...p, d]));
+    socket.on("pin:update", (d) => setPinMemos((p) => p.map((m) => (m.id === d.id ? d : m))));
+    socket.on("pin:removed", (d) => setPinMemos((p) => p.filter((m) => m.id !== d.id)));
+
     socket.on("canvas:clear", () => {
       if (disposed) return;
       isRemoteAction.current = true;
@@ -364,6 +380,7 @@ export default function MemoCanvas() {
       fc.backgroundColor = "#ffffff";
       fc.renderAll();
       setTables([]);
+      setPinMemos([]);
       isRemoteAction.current = false;
     });
 
@@ -446,32 +463,22 @@ export default function MemoCanvas() {
       if (!pointer) return;
 
       if (activeTool === "text") {
-        const text = new IText("", {
-          left: pointer.x, top: pointer.y, fontSize: 24,
-          fill: penColor, fontFamily: "sans-serif", editable: true,
-        });
-        setObjId(text);
-        fc.add(text);
-        fc.setActiveObject(text);
-        text.enterEditing();
-        fc.renderAll();
-        saveSnapshot();
-        scheduleSave();
-        emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
-        setActiveTool("select");
+        // HTML textarea 오버레이로 입력받기 (자연스러운 입력 + 가상 키보드 지원)
+        const canvasEl = fc.getSelectionElement();
+        const rect = canvasEl?.getBoundingClientRect() || { left: 0, top: 0 };
+        const e = opt.e as MouseEvent | TouchEvent;
+        const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+        const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+        setTextInput({ x: clientX, y: clientY, sceneX: pointer.x, sceneY: pointer.y });
+        return;
       } else if (activeTool === "pin") {
-        const pinW = 320, pinH = 180;
-        const bg = new Rect({ width: pinW, height: pinH, fill: "#fffde7", rx: 12, ry: 12, stroke: "#fdd835", strokeWidth: 2 });
-        const label = new IText("📌 메모", { left: 16, top: 14, fontSize: 18, fill: "#f57f17", fontWeight: "bold", fontFamily: "sans-serif" });
-        const body = new IText("", { left: 16, top: 48, fontSize: 15, fill: "#333333", fontFamily: "sans-serif", width: pinW - 32 });
-        const group = new Group([bg, label, body], { left: pointer.x, top: pointer.y, subTargetCheck: true, interactive: false });
-        setObjId(group);
-        fc.add(group);
-        fc.setActiveObject(group);
-        fc.renderAll();
-        saveSnapshot();
+        const e = opt.e as MouseEvent | TouchEvent;
+        const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+        const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+        const newPin: PinMemoData = { id: genId(), x: clientX - 144, y: clientY - 20, title: "", body: "" };
+        setPinMemos((p) => [...p, newPin]);
         scheduleSave();
-        emitIfLocal("object:added", { id: getObjId(group), data: group.toJSON() });
+        emitIfLocal("pin:added", newPin);
         setActiveTool("select");
       } else if (activeTool === "table") {
         // 현재 보이는 화면 중앙에 테이블 배치
@@ -524,6 +531,25 @@ export default function MemoCanvas() {
   const handleUndo = useCallback(() => undoRef.current(), []);
   const handleRedo = useCallback(() => redoRef.current(), []);
 
+  // 텍스트 입력 확정
+  const commitText = useCallback((value: string) => {
+    const fc = fabricRef.current;
+    if (!fc || !textInput || !value.trim()) { setTextInput(null); return; }
+    const text = new IText(value.trim(), {
+      left: textInput.sceneX, top: textInput.sceneY, fontSize: 24,
+      fill: penColor, fontFamily: "sans-serif", editable: true,
+    });
+    setObjId(text);
+    fc.add(text);
+    fc.setActiveObject(text);
+    fc.renderAll();
+    saveSnapshot();
+    scheduleSave();
+    emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
+    setTextInput(null);
+    setActiveTool("select");
+  }, [textInput, penColor, saveSnapshot, scheduleSave, emitIfLocal]);
+
   const handleTableUpdate = useCallback((updated: TableData) => {
     setTables((p) => p.map((t) => (t.id === updated.id ? updated : t)));
     scheduleSave();
@@ -536,11 +562,24 @@ export default function MemoCanvas() {
     emitIfLocal("table:removed", { id });
   }, [scheduleSave, emitIfLocal]);
 
+  const handlePinUpdate = useCallback((updated: PinMemoData) => {
+    setPinMemos((p) => p.map((m) => (m.id === updated.id ? updated : m)));
+    scheduleSave();
+    emitIfLocal("pin:update", updated);
+  }, [scheduleSave, emitIfLocal]);
+
+  const handlePinRemove = useCallback((id: string) => {
+    setPinMemos((p) => p.filter((m) => m.id !== id));
+    scheduleSave();
+    emitIfLocal("pin:removed", { id });
+  }, [scheduleSave, emitIfLocal]);
+
   const handleClear = useCallback(async () => {
     if (!confirm("메모판을 전체삭제 하시겠습니까?")) return;
     const fc = fabricRef.current;
     if (fc) { fc.clear(); fc.backgroundColor = isDark ? "#1e1e2e" : "#ffffff"; fc.renderAll(); }
     setTables([]);
+    setPinMemos([]);
     setUndoStack([]);
     setRedoStack([]);
     socketRef.current?.emit("canvas:clear");
@@ -573,8 +612,38 @@ export default function MemoCanvas() {
 
       <canvas ref={canvasRef} className="absolute left-0" style={{ top: HEADER_H }} />
 
+      {/* 텍스트 입력 오버레이 */}
+      {textInput && (
+        <div className="absolute inset-0 z-50" onClick={() => commitText(textareaRef.current?.value || "")}>
+          <textarea
+            ref={textareaRef}
+            autoFocus
+            className="absolute bg-transparent border-none outline-none resize-none text-2xl caret-blue-500"
+            style={{
+              left: textInput.x,
+              top: textInput.y,
+              minWidth: 200,
+              minHeight: 40,
+              color: penColor,
+              fontFamily: "sans-serif",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(e.currentTarget.value); }
+              if (e.key === "Escape") setTextInput(null);
+            }}
+            placeholder="텍스트 입력..."
+            inputMode="text"
+          />
+        </div>
+      )}
+
       {tables.map((table) => (
         <TableOverlay key={table.id} table={table} onUpdate={handleTableUpdate} onRemove={handleTableRemove} />
+      ))}
+
+      {pinMemos.map((memo) => (
+        <PinMemoOverlay key={memo.id} memo={memo} onUpdate={handlePinUpdate} onRemove={handlePinRemove} />
       ))}
 
       <FloatingToolbar

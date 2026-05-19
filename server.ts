@@ -59,6 +59,18 @@ app.prepare().then(() => {
       socket.broadcast.emit("table:removed", data);
     });
 
+    socket.on("pin:added", (data) => {
+      socket.broadcast.emit("pin:added", data);
+    });
+
+    socket.on("pin:update", (data) => {
+      socket.broadcast.emit("pin:update", data);
+    });
+
+    socket.on("pin:removed", (data) => {
+      socket.broadcast.emit("pin:removed", data);
+    });
+
     // 전체 캔버스 상태 동기화 (저장 시)
     socket.on("canvas:sync", (data) => {
       canvasState = data;
