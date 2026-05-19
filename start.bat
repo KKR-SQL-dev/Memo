@@ -54,7 +54,7 @@ del /f /q "%~dp0server-error.log" >nul 2>&1
 :: 서버 백그라운드 시작
 echo.
 echo [4/4] Starting server in background...
-powershell -Command "Start-Process -FilePath 'node' -ArgumentList '--import','tsx','server.ts' -WorkingDirectory '%~dp0' -WindowStyle Hidden -RedirectStandardOutput '%~dp0server.log' -RedirectStandardError '%~dp0server-error.log'"
+powershell -Command "Start-Process -FilePath 'cmd' -ArgumentList '/c','node --import tsx server.ts >server.log 2>server-error.log' -WorkingDirectory '%~dp0' -WindowStyle Hidden"
 
 :: 서버가 뜰 때까지 최대 15초 대기 (1초 간격 체크)
 set RETRY=0
