@@ -44,6 +44,8 @@ export default function MemoCanvas() {
   const autoSaveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
+  const undoRef = useRef<() => void>(() => {});
+  const redoRef = useRef<() => void>(() => {});
 
   // ─── 다크모드 ───
   const toggleDark = useCallback(() => {
@@ -180,8 +182,8 @@ export default function MemoCanvas() {
       const activeEl = document.activeElement;
       if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")) return;
 
-      if (e.ctrlKey && e.key === "z") e.preventDefault();
-      if (e.ctrlKey && e.key === "y") e.preventDefault();
+      if (e.ctrlKey && e.key === "z") { e.preventDefault(); undoRef.current(); return; }
+      if (e.ctrlKey && e.key === "y") { e.preventDefault(); redoRef.current(); return; }
       if (e.key === "Delete" || e.key === "Backspace") {
         const active = fc.getActiveObjects();
         if (active.length > 0) {
@@ -388,7 +390,7 @@ export default function MemoCanvas() {
         const bg = new Rect({ width: pinW, height: pinH, fill: "#fffde7", rx: 12, ry: 12, stroke: "#fdd835", strokeWidth: 2 });
         const label = new IText("📌 메모", { left: 16, top: 14, fontSize: 18, fill: "#f57f17", fontWeight: "bold", fontFamily: "sans-serif" });
         const body = new IText("", { left: 16, top: 48, fontSize: 15, fill: "#333333", fontFamily: "sans-serif", width: pinW - 32 });
-        const group = new Group([bg, label, body], { left: pointer.x, top: pointer.y, subTargetCheck: true, interactive: true });
+        const group = new Group([bg, label, body], { left: pointer.x, top: pointer.y, subTargetCheck: true, interactive: false });
         setObjId(group);
         fc.add(group);
         fc.setActiveObject(group);
@@ -398,7 +400,7 @@ export default function MemoCanvas() {
         setActiveTool("select");
       } else if (activeTool === "table") {
         const newTable: TableData = {
-          id: genId(), x: pointer.x, y: pointer.y, width: 400,
+          id: genId(), x: pointer.x, y: pointer.y, width: 400, height: 140,
           rows: [["", "", ""], ["", "", ""], ["", "", ""]],
           headerColor: "#3b82f6",
         };
@@ -438,6 +440,30 @@ export default function MemoCanvas() {
   }, [activeTool, penColor, saveSnapshot, emitIfLocal]);
 
   // ─── Undo/Redo ───
+  undoRef.current = () => {
+    const fc = fabricRef.current;
+    if (!fc || undoStack.length <= 1) return;
+    const newUndo = [...undoStack];
+    const current = newUndo.pop()!;
+    setRedoStack((prev) => [...prev, current]);
+    setUndoStack(newUndo);
+    const prevState = newUndo[newUndo.length - 1];
+    if (prevState) {
+      isRemoteAction.current = true;
+      fc.loadFromJSON(JSON.parse(prevState)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
+    }
+  };
+  redoRef.current = () => {
+    const fc = fabricRef.current;
+    if (!fc || redoStack.length === 0) return;
+    const newRedo = [...redoStack];
+    const nextState = newRedo.pop()!;
+    setRedoStack(newRedo);
+    setUndoStack((prev) => [...prev, nextState]);
+    isRemoteAction.current = true;
+    fc.loadFromJSON(JSON.parse(nextState)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
+  };
+
   const handleUndo = useCallback(() => {
     const fc = fabricRef.current;
     if (!fc || undoStack.length <= 1) return;

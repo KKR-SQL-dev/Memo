@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { Plus, Minus, X, GripVertical } from "lucide-react";
+import { Plus, Minus, X, GripVertical, GripHorizontal } from "lucide-react";
 
 export interface TableData {
   id: string;
   x: number;
   y: number;
   width: number;
+  height: number;
   rows: string[][];
   headerColor: string;
 }
@@ -20,7 +21,8 @@ interface TableOverlayProps {
 
 export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlayProps) {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
-  const resizeRef = useRef<{ startX: number; origW: number } | null>(null);
+  const resizeWRef = useRef<{ startX: number; origW: number } | null>(null);
+  const resizeHRef = useRef<{ startY: number; origH: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   // 드래그 이동
@@ -45,18 +47,34 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
   }, [table, onUpdate]);
 
   // 너비 리사이즈
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+  const handleResizeW = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    resizeRef.current = { startX: e.clientX, origW: table.width };
-
+    resizeWRef.current = { startX: e.clientX, origW: table.width };
     const handleMove = (ev: MouseEvent) => {
-      if (!resizeRef.current) return;
-      const newW = Math.max(200, resizeRef.current.origW + ev.clientX - resizeRef.current.startX);
-      onUpdate({ ...table, width: newW });
+      if (!resizeWRef.current) return;
+      onUpdate({ ...table, width: Math.max(200, resizeWRef.current.origW + ev.clientX - resizeWRef.current.startX) });
     };
     const handleUp = () => {
-      resizeRef.current = null;
+      resizeWRef.current = null;
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  }, [table, onUpdate]);
+
+  // 높이 리사이즈
+  const handleResizeH = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizeHRef.current = { startY: e.clientY, origH: table.height };
+    const handleMove = (ev: MouseEvent) => {
+      if (!resizeHRef.current) return;
+      onUpdate({ ...table, height: Math.max(80, resizeHRef.current.origH + ev.clientY - resizeHRef.current.startY) });
+    };
+    const handleUp = () => {
+      resizeHRef.current = null;
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);
     };
@@ -85,6 +103,7 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
 
   const colCount = table.rows[0]?.length || 3;
   const cellW = Math.max(60, (table.width - 2) / colCount);
+  const rowH = Math.max(32, (table.height - 2) / table.rows.length);
 
   return (
     <div
@@ -93,26 +112,26 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
       onMouseDown={handleDragStart}
     >
       {/* 컨트롤 버튼 */}
-      <div className="absolute -top-10 right-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={addRow} className="flex items-center gap-0.5 px-2 py-1 bg-emerald-500 text-white rounded-lg text-xs font-medium shadow-md hover:bg-emerald-600 transition-colors" title="행 추가">
-          <Plus size={14} />행
+      <div className="absolute -top-11 right-0 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={addRow} className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors" title="행 추가">
+          <Plus size={12} /> 행
         </button>
-        <button onClick={removeRow} className="flex items-center gap-0.5 px-2 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium shadow-md hover:bg-orange-600 transition-colors" title="행 삭제">
-          <Minus size={14} />행
+        <button onClick={removeRow} className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors" title="행 삭제">
+          <Minus size={12} /> 행
         </button>
-        <button onClick={addCol} className="flex items-center gap-0.5 px-2 py-1 bg-emerald-500 text-white rounded-lg text-xs font-medium shadow-md hover:bg-emerald-600 transition-colors" title="열 추가">
-          <Plus size={14} />열
+        <button onClick={addCol} className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors" title="열 추가">
+          <Plus size={12} /> 열
         </button>
-        <button onClick={removeCol} className="flex items-center gap-0.5 px-2 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium shadow-md hover:bg-orange-600 transition-colors" title="열 삭제">
-          <Minus size={14} />열
+        <button onClick={removeCol} className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors" title="열 삭제">
+          <Minus size={12} /> 열
         </button>
-        <button onClick={() => onRemove(table.id)} className="flex items-center gap-0.5 px-2 py-1 bg-red-500 text-white rounded-lg text-xs font-medium shadow-md hover:bg-red-600 transition-colors" title="삭제">
-          <X size={14} />
+        <button onClick={() => onRemove(table.id)} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-500 transition-colors" title="삭제">
+          <X size={12} />
         </button>
       </div>
 
       {/* 테이블 */}
-      <table className="border-collapse shadow-xl rounded-xl overflow-hidden text-sm select-none" style={{ width: table.width }}>
+      <table className="border-collapse shadow-lg rounded-lg overflow-hidden text-sm select-none" style={{ width: table.width }}>
         <tbody>
           {table.rows.map((row, ri) => (
             <tr key={ri}>
@@ -122,17 +141,18 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
                   className={`border border-gray-300 dark:border-[#555] px-0 py-0 ${
                     ri === 0 ? "text-white font-bold" : "bg-white dark:bg-[#2a2a3e]"
                   }`}
-                  style={{ ...(ri === 0 ? { backgroundColor: table.headerColor } : {}), width: cellW }}
+                  style={{ ...(ri === 0 ? { backgroundColor: table.headerColor } : {}), width: cellW, height: rowH }}
                 >
                   <input
                     type="text"
                     value={cell}
                     onChange={(e) => updateCell(ri, ci, e.target.value)}
-                    className={`w-full px-3 py-2.5 border-0 outline-none text-center text-sm ${
+                    className={`w-full h-full px-3 border-0 outline-none text-center text-sm ${
                       ri === 0
                         ? "bg-transparent text-white placeholder-white/50 font-bold"
                         : "bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-600"
                     }`}
+                    style={{ height: rowH }}
                     placeholder={ri === 0 ? "제목" : ""}
                   />
                 </td>
@@ -142,12 +162,20 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
         </tbody>
       </table>
 
-      {/* 리사이즈 핸들 */}
+      {/* 오른쪽 리사이즈 핸들 (너비) */}
       <div
-        className="resize-handle absolute top-0 -right-3 h-full w-3 cursor-col-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-        onMouseDown={handleResizeStart}
+        className="resize-handle absolute top-0 -right-4 h-full w-4 cursor-col-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        onMouseDown={handleResizeW}
       >
         <GripVertical size={14} className="text-gray-400" />
+      </div>
+
+      {/* 아래쪽 리사이즈 핸들 (높이) */}
+      <div
+        className="resize-handle absolute -bottom-4 left-0 w-full h-4 cursor-row-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        onMouseDown={handleResizeH}
+      >
+        <GripHorizontal size={14} className="text-gray-400" />
       </div>
     </div>
   );
