@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { X, Bold, Italic, Underline, ChevronDown, Pin } from "lucide-react";
 
 export interface PinMemoData {
@@ -36,6 +36,14 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
   const fontStyle = memo.fontStyle || "normal";
   const textDecoration = memo.textDecoration || "none";
   const color = memo.color || "#000000";
+
+  // 로드 시 또는 본문/폰트 변경 시 textarea 높이 자동 맞춤
+  useEffect(() => {
+    if (bodyRef.current) {
+      bodyRef.current.style.height = "auto";
+      bodyRef.current.style.height = bodyRef.current.scrollHeight + "px";
+    }
+  }, [memo.body, fontSize]);
 
   const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if ((e.target as HTMLElement).closest("textarea, input, button")) return;
