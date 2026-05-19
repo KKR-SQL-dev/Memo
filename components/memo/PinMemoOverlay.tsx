@@ -22,8 +22,8 @@ interface PinMemoOverlayProps {
   onRemove: (id: string) => void;
 }
 
-const COLORS = ["#4b5563", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"];
-const SIZES = [14, 16, 20, 24, 28];
+const COLORS = ["#000000", "#ffffff", "#ef4444", "#2563eb", "#16a34a", "#f59e0b"];
+const SIZES = [14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96];
 
 export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOverlayProps) {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
@@ -35,7 +35,7 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
   const fontWeight = memo.fontWeight || "normal";
   const fontStyle = memo.fontStyle || "normal";
   const textDecoration = memo.textDecoration || "none";
-  const color = memo.color || "#4b5563";
+  const color = memo.color || "#000000";
 
   const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if ((e.target as HTMLElement).closest("textarea, input, button")) return;
@@ -129,7 +129,7 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
               <ChevronDown size={12} />
             </button>
             {showSizeMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[#2a2a3e] rounded-lg shadow-lg border border-amber-200 dark:border-[#444] py-1 z-50">
+              <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[#2a2a3e] rounded-lg shadow-lg border border-amber-200 dark:border-[#444] py-1 z-50 max-h-52 overflow-y-auto">
                 {SIZES.map((s) => (
                   <button
                     key={s}
@@ -151,7 +151,7 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
               <button
                 key={c}
                 onClick={() => onUpdate({ ...memo, color: c })}
-                className={`w-5 h-5 rounded-full border-2 transition-colors ${color === c ? "border-amber-700 dark:border-amber-300 ring-1 ring-amber-400/50" : "border-amber-300/60 dark:border-[#555] hover:border-amber-400 dark:hover:border-amber-400"}`}
+                className={`w-5 h-5 rounded-full border-2 transition-colors ${color === c ? "border-amber-700 dark:border-amber-300 ring-1 ring-amber-400/50" : c === "#ffffff" ? "border-gray-300 dark:border-[#555] hover:border-amber-400" : "border-amber-300/60 dark:border-[#555] hover:border-amber-400 dark:hover:border-amber-400"}`}
                 style={{ backgroundColor: c }}
               />
             ))}
