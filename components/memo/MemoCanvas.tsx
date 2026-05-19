@@ -34,6 +34,7 @@ export default function MemoCanvas() {
   const isRemoteAction = useRef(false);
 
   const [activeTool, setActiveTool] = useState<ToolType>("select");
+  const [overlayScale, setOverlayScale] = useState(1);
   const [penColor, setPenColor] = useState("#000000");
   const [bgColor, setBgColor] = useState(() => {
     if (typeof window === "undefined") return "#ffffff";
@@ -736,7 +737,7 @@ export default function MemoCanvas() {
       fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
       fc.renderAll();
     }
-    // 화면 밖 핀메모/테이블을 비율 유지하며 축소
+    // 화면 밖 핀메모/테이블 → CSS 스케일로 축소 (원본 데이터 유지)
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     let overlayMaxX = 0, overlayMaxY = 0;
@@ -751,18 +752,9 @@ export default function MemoCanvas() {
     if (overlayMaxX > vw || overlayMaxY > vh) {
       const scaleX = overlayMaxX > vw ? (vw - 20) / overlayMaxX : 1;
       const scaleY = overlayMaxY > vh ? (vh - 20) / overlayMaxY : 1;
-      const scale = Math.min(scaleX, scaleY);
-      setPinMemos((prev) => prev.map((pin) => ({
-        ...pin,
-        x: Math.round(pin.x * scale),
-        y: Math.max(HEADER_H, Math.round(pin.y * scale)),
-      })));
-      setTables((prev) => prev.map((t) => ({
-        ...t,
-        x: Math.round(t.x * scale),
-        y: Math.max(HEADER_H, Math.round(t.y * scale)),
-      })));
-      scheduleSave();
+      setOverlayScale(Math.min(scaleX, scaleY));
+    } else {
+      setOverlayScale(1);
     }
   }, [scheduleSave]);
 
@@ -996,13 +988,18 @@ export default function MemoCanvas() {
         </div>
       )}
 
-      {tables.map((table) => (
-        <TableOverlay key={table.id} table={table} onUpdate={handleTableUpdate} onRemove={handleTableRemove} />
-      ))}
+      <div
+        style={overlayScale < 1 ? { transform: `scale(${overlayScale})`, transformOrigin: "0 0" } : undefined}
+        onClick={overlayScale < 1 ? () => setOverlayScale(1) : undefined}
+      >
+        {tables.map((table) => (
+          <TableOverlay key={table.id} table={table} onUpdate={handleTableUpdate} onRemove={handleTableRemove} />
+        ))}
 
-      {pinMemos.map((memo) => (
-        <PinMemoOverlay key={memo.id} memo={memo} onUpdate={handlePinUpdate} onRemove={handlePinRemove} />
-      ))}
+        {pinMemos.map((memo) => (
+          <PinMemoOverlay key={memo.id} memo={memo} onUpdate={handlePinUpdate} onRemove={handlePinRemove} />
+        ))}
+      </div>
 
       <FloatingToolbar
         activeTool={activeTool} onToolChange={setActiveTool}
