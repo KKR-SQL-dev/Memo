@@ -295,8 +295,10 @@ export default function MemoCanvas() {
       const path = (e as unknown as { path: FabricObject }).path;
       if (path) {
         setObjId(path);
-        emitIfLocal("drawing:path", { id: getObjId(path), data: path.toJSON() });
-        scheduleSave();
+        if (activeToolRef.current !== "handwriting") {
+          emitIfLocal("drawing:path", { id: getObjId(path), data: path.toJSON() });
+          scheduleSave();
+        }
         // 스트로크 간 끊김 방지: 스냅샷을 다음 프레임으로 지연
         requestAnimationFrame(() => saveSnapshot());
       }
@@ -606,10 +608,17 @@ export default function MemoCanvas() {
       brush.color = bgColor;
       brush.width = eraserSize;
       fc.freeDrawingBrush = brush;
+    } else if (activeTool === "handwriting") {
+      fc.isDrawingMode = true;
+      const brush = new PencilBrush(fc);
+      brush.color = penColor;
+      brush.width = 3;
+      brush.decimate = 2;
+      fc.freeDrawingBrush = brush;
     } else if (activeTool === "hand") {
       fc.selection = false;
       fc.defaultCursor = "grab";
-    } else if (["text", "handwriting", "pin", "table", "image"].includes(activeTool)) {
+    } else if (["text", "pin", "table", "image"].includes(activeTool)) {
       fc.selection = false;
       fc.defaultCursor = "crosshair";
     }
@@ -619,6 +628,100 @@ export default function MemoCanvas() {
     const fc = fabricRef.current;
     if (fc) { fc.backgroundColor = bgColor; fc.renderAll(); }
   }, [bgColor]);
+
+  // ─── 스마트펜: 캔버스에 직접 쓰고 Google 필기 인식 ───
+  useEffect(() => {
+    if (activeTool !== "handwriting") return;
+    const fc = fabricRef.current;
+    if (!fc) return;
+
+    let strokes: Array<{ xs: number[]; ys: number[] }> = [];
+    let curXs: number[] = [];
+    let curYs: number[] = [];
+    let drawnPaths: FabricObject[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let firstScene: { x: number; y: number } | null = null;
+
+    const getPoint = (e: Event) => {
+      const me = e as MouseEvent | TouchEvent;
+      const el = fc.getSelectionElement();
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      const cx = "touches" in me ? me.touches[0]?.clientX ?? 0 : me.clientX;
+      const cy = "touches" in me ? me.touches[0]?.clientY ?? 0 : me.clientY;
+      return { x: cx - rect.left, y: cy - rect.top };
+    };
+
+    const onDown = (opt: { e: Event; scenePoint?: { x: number; y: number } }) => {
+      const pt = getPoint(opt.e);
+      if (!pt) return;
+      curXs = [pt.x];
+      curYs = [pt.y];
+      if (!firstScene && opt.scenePoint) firstScene = { x: opt.scenePoint.x, y: opt.scenePoint.y };
+      if (timer) { clearTimeout(timer); timer = null; }
+    };
+    const onMove = (opt: { e: Event }) => {
+      if (curXs.length === 0) return;
+      const pt = getPoint(opt.e);
+      if (pt) { curXs.push(pt.x); curYs.push(pt.y); }
+    };
+    const onUp = () => {
+      if (curXs.length > 1) strokes.push({ xs: [...curXs], ys: [...curYs] });
+      curXs = []; curYs = [];
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => recognize(), 2000);
+    };
+    const onPath = (e: unknown) => {
+      const path = (e as { path: FabricObject }).path;
+      if (path) drawnPaths.push(path);
+    };
+
+    const recognize = async () => {
+      if (strokes.length === 0) return;
+      try {
+        const ink = strokes.map((s) => [s.xs, s.ys, []]);
+        const res = await fetch("/api/handwriting", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ink, language: "ko" }),
+        });
+        const data = await res.json();
+        if (data.text) {
+          for (const path of drawnPaths) {
+            emitIfLocal("object:removed", { id: getObjId(path) });
+            fc.remove(path);
+          }
+          const pos = firstScene || { x: 100, y: 100 };
+          const text = new IText(data.text, {
+            left: pos.x, top: pos.y, fontSize: 32,
+            fill: penColor, fontFamily: "sans-serif", editable: true,
+          });
+          setObjId(text);
+          fc.add(text);
+          fc.setActiveObject(text);
+          fc.renderAll();
+          saveSnapshot();
+          scheduleSave();
+          emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
+        }
+      } catch (err) {
+        console.error("필기 인식 실패:", err);
+      }
+      strokes = []; drawnPaths = []; firstScene = null;
+    };
+
+    fc.on("mouse:down", onDown);
+    fc.on("mouse:move", onMove);
+    fc.on("mouse:up", onUp);
+    fc.on("path:created", onPath);
+    return () => {
+      if (timer) clearTimeout(timer);
+      fc.off("mouse:down", onDown);
+      fc.off("mouse:move", onMove);
+      fc.off("mouse:up", onUp);
+      fc.off("path:created", onPath);
+    };
+  }, [activeTool, penColor, saveSnapshot, scheduleSave, emitIfLocal]);
 
   // ─── 캔버스 클릭 → 객체 생성 ───
   useEffect(() => {
@@ -651,12 +754,6 @@ export default function MemoCanvas() {
 
       if (activeTool === "text") {
         // HTML textarea 오버레이로 입력받기 (자연스러운 입력 + 가상 키보드 지원)
-        const e = opt.e as MouseEvent | TouchEvent;
-        const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-        const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-        setTextInput({ x: clientX, y: clientY, sceneX: pointer.x, sceneY: pointer.y });
-        return;
-      } else if (activeTool === "handwriting") {
         const e = opt.e as MouseEvent | TouchEvent;
         const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
         const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
