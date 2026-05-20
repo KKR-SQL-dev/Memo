@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Canvas, IText, FabricImage, PencilBrush, FabricObject, Point, util } from "fabric";
 import { io, Socket } from "socket.io-client";
-import { Home, Trash2, Maximize2, X } from "lucide-react";
+import { Home, Trash2, Maximize2, X, History } from "lucide-react";
 import FloatingToolbar, { type ToolType } from "./FloatingToolbar";
 import TableOverlay, { type TableData } from "./TableOverlay";
 import PinMemoOverlay, { type PinMemoData } from "./PinMemoOverlay";
@@ -952,6 +952,43 @@ export default function MemoCanvas() {
     try { await fetch("/api/memo/clear", { method: "POST" }); } catch { /* ignore */ }
   }, [isDark]);
 
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyList, setHistoryList] = useState<{ id: number; backed_up_at: string }[]>([]);
+
+  const handleOpenHistory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/memo/history");
+      const data = await res.json();
+      setHistoryList(Array.isArray(data) ? data : []);
+      setShowHistory(true);
+    } catch { setHistoryList([]); setShowHistory(true); }
+  }, []);
+
+  const handleSaveHistory = useCallback(async () => {
+    try {
+      await fetch("/api/memo/history", { method: "POST" });
+      const res = await fetch("/api/memo/history");
+      const data = await res.json();
+      setHistoryList(Array.isArray(data) ? data : []);
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleRestoreHistory = useCallback(async (backupId: number) => {
+    if (!confirm("이 시점으로 되돌리시겠습니까?")) return;
+    try {
+      const res = await fetch("/api/memo/history/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backupId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowHistory(false);
+        window.location.reload();
+      } else { alert("복구 실패"); }
+    } catch { alert("복구 실패"); }
+  }, []);
+
   return (
     <div className="relative w-full h-screen overflow-hidden bg-white dark:bg-[#121218]">
       {/* ─── 상단 헤더 ─── */}
@@ -982,6 +1019,14 @@ export default function MemoCanvas() {
         >
           <Trash2 size={12} />
           전체삭제
+        </button>
+        <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
+        <button
+          onClick={handleOpenHistory}
+          className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
+        >
+          <History size={12} />
+          이력
         </button>
       </div>
 
@@ -1178,6 +1223,44 @@ export default function MemoCanvas() {
         >
           <X size={18} />
         </button>
+      )}
+
+      {/* 이력 모달 */}
+      {showHistory && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={() => setShowHistory(false)}>
+          <div className="bg-white dark:bg-[#2a2a3e] rounded-xl shadow-2xl w-96 max-h-[70vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-[#444]">
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">이력</h3>
+              <div className="flex items-center gap-2">
+                <button onClick={handleSaveHistory} className="px-3 py-1 text-xs bg-sky-500 hover:bg-sky-600 text-white rounded-md transition-colors">
+                  현재 상태 저장
+                </button>
+                <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="overflow-y-auto max-h-[55vh] p-3">
+              {historyList.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-8">저장된 이력이 없습니다.</p>
+              ) : (
+                historyList.map((h) => (
+                  <div key={h.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-[#333] transition-colors mb-1">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      {new Date(h.backed_up_at).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <button
+                      onClick={() => handleRestoreHistory(h.id)}
+                      className="px-3 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded-md transition-colors"
+                    >
+                      되돌리기
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <div ref={overlayRef}>
