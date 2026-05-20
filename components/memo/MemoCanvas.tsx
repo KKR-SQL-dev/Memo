@@ -69,6 +69,7 @@ export default function MemoCanvas() {
 
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
+  const fitAllRef = useRef<() => void>(() => {});
   const undoRef = useRef<() => void>(() => {});
   const redoRef = useRef<() => void>(() => {});
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -177,6 +178,8 @@ export default function MemoCanvas() {
     const handleResize = () => {
       fc.setDimensions({ width: window.innerWidth, height: window.innerHeight - HEADER_H });
       fc.renderAll();
+      // 화면 크기 변경 시 자동 전체보기 (2분할 전환 등)
+      requestAnimationFrame(() => fitAllRef.current());
     };
     window.addEventListener("resize", handleResize);
 
@@ -377,6 +380,8 @@ export default function MemoCanvas() {
               });
               fc.renderAll();
               saveSnapshot();
+              // 초기 로드 후 자동 전체보기
+              requestAnimationFrame(() => fitAllRef.current());
             });
           } catch { /* ignore */ }
         }
@@ -757,6 +762,7 @@ export default function MemoCanvas() {
       setOverlayScale(1);
     }
   }, [scheduleSave]);
+  fitAllRef.current = handleFitAll;
 
   const handleZoomIn = useCallback(() => {
     const fc = fabricRef.current;
