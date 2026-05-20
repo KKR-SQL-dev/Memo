@@ -59,7 +59,7 @@ export default function MemoCanvas() {
   const [textSize, setTextSize] = useState(32);
   const [pinMemos, setPinMemos] = useState<PinMemoData[]>([]);
   const [deleteBtn, setDeleteBtn] = useState<{ x: number; y: number } | null>(null);
-  const [hwPad, setHwPad] = useState<{ sceneX: number; sceneY: number } | null>(null);
+  const [hwPad, setHwPad] = useState<{ sceneX: number; sceneY: number; screenY: number } | null>(null);
   const hwTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [selectedTextInfo, setSelectedTextInfo] = useState<{
     obj: IText; x: number; y: number;
@@ -634,17 +634,34 @@ export default function MemoCanvas() {
       const pointer = opt.scenePoint || opt.viewportPoint;
       if (!pointer) return;
 
+      // 지우개로 오브젝트 탭 → 해당 오브젝트 삭제
+      if (activeTool === "eraser") {
+        const objects = fc.getObjects();
+        for (let i = objects.length - 1; i >= 0; i--) {
+          if (objects[i].containsPoint(new Point(pointer.x, pointer.y))) {
+            emitIfLocal("object:removed", { id: getObjId(objects[i]) });
+            fc.remove(objects[i]);
+            fc.discardActiveObject();
+            fc.renderAll();
+            saveSnapshot();
+            scheduleSave();
+            return;
+          }
+        }
+        return;
+      }
+
       if (activeTool === "text") {
         // HTML textarea 오버레이로 입력받기 (자연스러운 입력 + 가상 키보드 지원)
-        const canvasEl = fc.getSelectionElement();
-        const rect = canvasEl?.getBoundingClientRect() || { left: 0, top: 0 };
         const e = opt.e as MouseEvent | TouchEvent;
         const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
         const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
         setTextInput({ x: clientX, y: clientY, sceneX: pointer.x, sceneY: pointer.y });
         return;
       } else if (activeTool === "handwriting") {
-        setHwPad({ sceneX: pointer.x, sceneY: pointer.y });
+        const e = opt.e as MouseEvent | TouchEvent;
+        const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+        setHwPad({ sceneX: pointer.x, sceneY: pointer.y, screenY: clientY });
         return;
       } else if (activeTool === "pin") {
         const e = opt.e as MouseEvent | TouchEvent;
@@ -747,6 +764,22 @@ export default function MemoCanvas() {
     setHwPad(null);
     setActiveTool("select");
   }, [hwPad, penColor, saveSnapshot, scheduleSave, emitIfLocal]);
+
+  // 스마트펜: 3초 입력 없으면 자동 확정
+  useEffect(() => {
+    if (!hwPad) return;
+    const textarea = hwTextareaRef.current;
+    if (!textarea) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const handleInput = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (textarea.value.trim()) commitHwText();
+      }, 3000);
+    };
+    textarea.addEventListener("input", handleInput);
+    return () => { clearTimeout(timer); textarea.removeEventListener("input", handleInput); };
+  }, [hwPad, commitHwText]);
 
   const handleTableUpdate = useCallback((updated: TableData) => {
     setTables((p) => p.map((t) => (t.id === updated.id ? updated : t)));
@@ -938,44 +971,41 @@ export default function MemoCanvas() {
             }}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(e.currentTarget.value); }
-              if (e.key === "Escape") setTextInput(null);
+              if (e.key === "Escape") { e.preventDefault(); commitText(e.currentTarget.value); }
             }}
-            placeholder="텍스트 입력..."
+            placeholder="텍스트 입력... (Esc로 확정)"
             inputMode="text"
           />
         </div>
       )}
 
-      {/* 스마트펜 입력 패드 */}
+      {/* 스마트펜: 화면에 직접 쓰는 투명 입력 영역 */}
       {hwPad && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setHwPad(null)}>
+        <div className="absolute inset-0 z-50" onClick={() => commitHwText()}>
           <div
-            className="bg-white dark:bg-[#2a2a3e] rounded-2xl shadow-2xl p-6 w-[90vw] max-w-[700px]"
+            className="absolute left-4 right-4"
+            style={{ top: Math.max(HEADER_H + 8, hwPad.screenY - 80) }}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-base text-gray-500 dark:text-gray-400 mb-4">
-              펜으로 아래 입력창에 작성하면 텍스트로 변환됩니다
-            </p>
             <textarea
               ref={hwTextareaRef}
               autoFocus
-              className="w-full h-52 p-5 text-2xl border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-[#1e1e2e] text-gray-800 dark:text-gray-200 outline-none resize-none focus:border-blue-400 dark:focus:border-blue-500 transition-colors"
-              placeholder="여기에 펜으로 작성하세요..."
+              className="w-full h-44 p-5 text-2xl bg-white/10 dark:bg-white/5 backdrop-blur-sm border-2 border-dashed border-blue-400/60 rounded-2xl text-gray-800 dark:text-gray-100 outline-none resize-none focus:border-blue-500 transition-colors"
+              placeholder="펜으로 여기에 작성하세요... (3초 후 자동 확정)"
               inputMode="text"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitHwText(); }
                 if (e.key === "Escape") setHwPad(null);
               }}
             />
-            <div className="flex justify-end gap-3 mt-4">
+            <div className="flex justify-end gap-2 mt-2">
               <button
                 onClick={() => setHwPad(null)}
-                className="px-6 py-2.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors text-base"
+                className="px-5 py-2 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/10 transition-colors text-sm"
               >취소</button>
               <button
                 onClick={commitHwText}
-                className="px-6 py-2.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors text-base font-medium"
+                className="px-5 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors text-sm font-medium"
               >확인</button>
             </div>
           </div>
