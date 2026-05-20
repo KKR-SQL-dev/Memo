@@ -943,7 +943,7 @@ export default function MemoCanvas() {
             </div>
             <div className="w-px h-5 bg-gray-300 dark:bg-[#555]" />
             <div className="flex items-center gap-1">
-              {["#1f2937", "#ffffff", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"].map((c) => (
+              {["#ffffff", "#ff3b30", "#007aff", "#34c759", "#ffcc00", "#ff9500"].map((c) => (
                 <button
                   key={c}
                   onClick={() => setPenColor(c)}
@@ -1088,7 +1088,7 @@ export default function MemoCanvas() {
 
           {/* Colors */}
           <div className="flex items-center gap-1">
-            {["#1f2937", "#ffffff", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"].map((c) => (
+            {["#ffffff", "#ff3b30", "#007aff", "#34c759", "#ffcc00", "#ff9500"].map((c) => (
               <button
                 key={c}
                 onClick={() => {
