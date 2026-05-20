@@ -513,8 +513,8 @@ export default function MemoCanvas() {
     socket.on("canvas:clear", () => {
       if (disposed) return;
       isRemoteAction.current = true;
-      fc.clear();
-      fc.backgroundColor = bgColorRef.current;
+      fc.getObjects().forEach((obj) => fc.remove(obj));
+      fc.discardActiveObject();
       fc.renderAll();
       setTables([]);
       setPinMemos([]);
@@ -796,7 +796,7 @@ export default function MemoCanvas() {
   const handleClear = useCallback(async () => {
     if (!confirm("메모판을 전체삭제 하시겠습니까?")) return;
     const fc = fabricRef.current;
-    if (fc) { fc.clear(); fc.backgroundColor = bgColor; fc.renderAll(); }
+    if (fc) { fc.getObjects().forEach((obj) => fc.remove(obj)); fc.discardActiveObject(); fc.renderAll(); }
     setTables([]);
     setPinMemos([]);
     setUndoStack([]);
