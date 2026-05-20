@@ -119,7 +119,6 @@ export default function FloatingToolbar({
       {toolBtn("select", MousePointer2, "선택")}
       {toolBtn("hand", Hand, "화면 이동")}
       {toolBtn("text", Type, "텍스트")}
-      {toolBtn("handwriting", PenLine, "스마트펜")}
       {toolBtn("table", Table2, "테이블")}
       {toolBtn("pin", Pin, "고정 메모")}
       {toolBtn("image", ImagePlus, "이미지")}
@@ -127,6 +126,7 @@ export default function FloatingToolbar({
       <div className="w-px h-8 bg-gray-300 dark:bg-[#555] mx-1.5" />
 
       {toolBtn("pen", Pencil, "펜")}
+      {toolBtn("handwriting", PenLine, "스마트펜")}
       <div className="relative">
         <button
           onClick={() => { onToolChange("eraser"); setShowEraserSize(!showEraserSize); setShowPenColor(false); setShowBgColor(false); }}
