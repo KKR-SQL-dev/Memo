@@ -18,6 +18,7 @@ export interface PinMemoData {
 
 interface PinMemoOverlayProps {
   memo: PinMemoData;
+  zoom?: number;
   onUpdate: (memo: PinMemoData) => void;
   onRemove: (id: string) => void;
 }
@@ -25,7 +26,7 @@ interface PinMemoOverlayProps {
 const COLORS = ["#000000", "#ffffff", "#ef4444", "#2563eb", "#16a34a", "#f59e0b"];
 const SIZES = [14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96];
 
-export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOverlayProps) {
+export default function PinMemoOverlay({ memo, zoom = 1, onUpdate, onRemove }: PinMemoOverlayProps) {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
@@ -53,11 +54,12 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
     dragRef.current = { startX: clientX, startY: clientY, origX: memo.x, origY: memo.y };
     setIsDragging(true);
 
+    const z = zoom || 1;
     const handleMove = (ev: MouseEvent | TouchEvent) => {
       if (!dragRef.current) return;
       const cx = "touches" in ev ? ev.touches[0].clientX : ev.clientX;
       const cy = "touches" in ev ? ev.touches[0].clientY : ev.clientY;
-      onUpdate({ ...memo, x: dragRef.current.origX + cx - dragRef.current.startX, y: dragRef.current.origY + cy - dragRef.current.startY });
+      onUpdate({ ...memo, x: dragRef.current.origX + (cx - dragRef.current.startX) / z, y: dragRef.current.origY + (cy - dragRef.current.startY) / z });
     };
     const handleUp = () => {
       dragRef.current = null;
@@ -71,7 +73,7 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
     window.addEventListener("mouseup", handleUp);
     window.addEventListener("touchmove", handleMove);
     window.addEventListener("touchend", handleUp);
-  }, [memo, onUpdate]);
+  }, [memo, zoom, onUpdate]);
 
   return (
     <div

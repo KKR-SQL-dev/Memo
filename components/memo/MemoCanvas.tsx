@@ -32,6 +32,7 @@ export default function MemoCanvas() {
   const fabricRef = useRef<Canvas | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const isRemoteAction = useRef(false);
+  const zoomRef = useRef(1);
 
   const [activeTool, setActiveTool] = useState<ToolType>("select");
   const [isFitAll, setIsFitAll] = useState(false);
@@ -203,6 +204,7 @@ export default function MemoCanvas() {
         if (zoom > 5) zoom = 5;
         if (zoom < 0.3) zoom = 0.3;
         fc.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
+        zoomRef.current = zoom;
       }
     });
 
@@ -242,6 +244,7 @@ export default function MemoCanvas() {
       const vt = fc.viewportTransform;
       if (!vt) return;
       const zoom = vt[0], panX = vt[4], panY = vt[5];
+      zoomRef.current = zoom;
       const ty = HEADER_H * (1 - zoom) + panY;
       if (zoom === 1 && panX === 0 && ty === 0) {
         overlayRef.current.style.transform = "";
@@ -378,6 +381,7 @@ export default function MemoCanvas() {
           if (zoom > 5) zoom = 5;
           if (zoom < 0.3) zoom = 0.3;
           fc.zoomToPoint(new Point(cx, cy - HEADER_H), zoom);
+          zoomRef.current = zoom;
           // 두 손가락 동시 패닝
           fc.relativePan(new Point(cx - lastCenter.x, cy - lastCenter.y));
         }
@@ -763,18 +767,29 @@ export default function MemoCanvas() {
         const e = opt.e as MouseEvent | TouchEvent;
         const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
         const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-        const newPin: PinMemoData = { id: genId(), x: clientX - 144, y: clientY - 20, title: "", body: "" };
+        // 화면 좌표 → 캔버스 좌표 변환
+        const fc2 = fabricRef.current;
+        const vt = fc2?.viewportTransform || [1, 0, 0, 1, 0, 0];
+        const zm = vt[0], px = vt[4], py = vt[5];
+        const ty = HEADER_H * (1 - zm) + py;
+        const canvasX = (clientX - px) / zm - 144;
+        const canvasY = (clientY - ty) / zm - 20;
+        const newPin: PinMemoData = { id: genId(), x: canvasX, y: canvasY, title: "", body: "" };
         setPinMemos((p) => [...p, newPin]);
         scheduleSave();
         emitIfLocal("pin:added", newPin);
         setActiveTool("select");
       } else if (activeTool === "table") {
-        // 현재 보이는 화면 중앙에 테이블 배치
-        const vw = window.innerWidth;
-        const vh = window.innerHeight - HEADER_H;
+        // 현재 보이는 화면 중앙 → 캔버스 좌표로 변환
+        const fc2 = fabricRef.current;
+        const vt = fc2?.viewportTransform || [1, 0, 0, 1, 0, 0];
+        const zm = vt[0], px = vt[4], py = vt[5];
         const tableW = 400, tableH = 140;
-        const centerX = (vw - tableW) / 2;
-        const centerY = HEADER_H + (vh - tableH) / 2;
+        const screenCX = window.innerWidth / 2;
+        const screenCY = window.innerHeight / 2;
+        const ty = HEADER_H * (1 - zm) + py;
+        const centerX = (screenCX - px) / zm - tableW / 2;
+        const centerY = (screenCY - ty) / zm - tableH / 2;
         const newTable: TableData = {
           id: genId(), x: centerX, y: centerY, width: tableW, height: tableH,
           rows: [["", "", ""], ["", "", ""], ["", "", ""]],
@@ -910,6 +925,8 @@ export default function MemoCanvas() {
     let zoom = fc.getZoom() * 1.2;
     if (zoom > 5) zoom = 5;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
+    zoomRef.current = zoom;
+    fc.renderAll();
   }, []);
 
   const handleZoomOut = useCallback(() => {
@@ -919,6 +936,8 @@ export default function MemoCanvas() {
     let zoom = fc.getZoom() / 1.2;
     if (zoom < 0.3) zoom = 0.3;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
+    zoomRef.current = zoom;
+    fc.renderAll();
   }, []);
 
   const handleClear = useCallback(async () => {
@@ -1163,11 +1182,11 @@ export default function MemoCanvas() {
 
       <div ref={overlayRef}>
         {tables.map((table) => (
-          <TableOverlay key={table.id} table={table} onUpdate={handleTableUpdate} onRemove={handleTableRemove} />
+          <TableOverlay key={table.id} table={table} zoom={zoomRef.current} onUpdate={handleTableUpdate} onRemove={handleTableRemove} />
         ))}
 
         {pinMemos.map((memo) => (
-          <PinMemoOverlay key={memo.id} memo={memo} onUpdate={handlePinUpdate} onRemove={handlePinRemove} />
+          <PinMemoOverlay key={memo.id} memo={memo} zoom={zoomRef.current} onUpdate={handlePinUpdate} onRemove={handlePinRemove} />
         ))}
       </div>
 

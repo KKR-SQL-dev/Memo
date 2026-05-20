@@ -15,11 +15,12 @@ export interface TableData {
 
 interface TableOverlayProps {
   table: TableData;
+  zoom?: number;
   onUpdate: (table: TableData) => void;
   onRemove: (id: string) => void;
 }
 
-export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlayProps) {
+export default function TableOverlay({ table, zoom = 1, onUpdate, onRemove }: TableOverlayProps) {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const resizeWRef = useRef<{ startX: number; origW: number } | null>(null);
   const resizeHRef = useRef<{ startY: number; origH: number } | null>(null);
@@ -34,11 +35,12 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
     dragRef.current = { startX: clientX, startY: clientY, origX: table.x, origY: table.y };
     setIsDragging(true);
 
+    const z = zoom || 1;
     const handleMove = (ev: MouseEvent | TouchEvent) => {
       if (!dragRef.current) return;
       const cx = "touches" in ev ? ev.touches[0].clientX : ev.clientX;
       const cy = "touches" in ev ? ev.touches[0].clientY : ev.clientY;
-      onUpdate({ ...table, x: dragRef.current.origX + cx - dragRef.current.startX, y: dragRef.current.origY + cy - dragRef.current.startY });
+      onUpdate({ ...table, x: dragRef.current.origX + (cx - dragRef.current.startX) / z, y: dragRef.current.origY + (cy - dragRef.current.startY) / z });
     };
     const handleUp = () => {
       dragRef.current = null;
@@ -52,16 +54,17 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
     window.addEventListener("mouseup", handleUp);
     window.addEventListener("touchmove", handleMove);
     window.addEventListener("touchend", handleUp);
-  }, [table, onUpdate]);
+  }, [table, zoom, onUpdate]);
 
   // 너비 리사이즈
   const handleResizeW = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     resizeWRef.current = { startX: e.clientX, origW: table.width };
+    const z = zoom || 1;
     const handleMove = (ev: MouseEvent) => {
       if (!resizeWRef.current) return;
-      onUpdate({ ...table, width: Math.max(200, resizeWRef.current.origW + ev.clientX - resizeWRef.current.startX) });
+      onUpdate({ ...table, width: Math.max(200, resizeWRef.current.origW + (ev.clientX - resizeWRef.current.startX) / z) });
     };
     const handleUp = () => {
       resizeWRef.current = null;
@@ -70,16 +73,17 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
     };
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
-  }, [table, onUpdate]);
+  }, [table, zoom, onUpdate]);
 
   // 높이 리사이즈
   const handleResizeH = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     resizeHRef.current = { startY: e.clientY, origH: table.height };
+    const z = zoom || 1;
     const handleMove = (ev: MouseEvent) => {
       if (!resizeHRef.current) return;
-      onUpdate({ ...table, height: Math.max(80, resizeHRef.current.origH + ev.clientY - resizeHRef.current.startY) });
+      onUpdate({ ...table, height: Math.max(80, resizeHRef.current.origH + (ev.clientY - resizeHRef.current.startY) / z) });
     };
     const handleUp = () => {
       resizeHRef.current = null;
@@ -88,7 +92,7 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
     };
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
-  }, [table, onUpdate]);
+  }, [table, zoom, onUpdate]);
 
   const updateCell = (row: number, col: number, value: string) => {
     const newRows = table.rows.map((r, ri) => r.map((c, ci) => (ri === row && ci === col ? value : c)));
