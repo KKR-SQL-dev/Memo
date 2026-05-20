@@ -4,11 +4,11 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   MousePointer2, Type, Table2, Pin, ImagePlus, Pencil, Eraser,
   Palette, PaintBucket, Undo2, Redo2, Sun, Moon, GripVertical, Keyboard,
-  Hand, ZoomIn, ZoomOut,
+  Hand, ZoomIn, ZoomOut, PenLine,
 } from "lucide-react";
 import ColorPicker from "./ColorPicker";
 
-export type ToolType = "select" | "hand" | "text" | "table" | "pin" | "image" | "pen" | "eraser";
+export type ToolType = "select" | "hand" | "text" | "handwriting" | "table" | "pin" | "image" | "pen" | "eraser";
 
 interface FloatingToolbarProps {
   activeTool: ToolType;
@@ -119,6 +119,7 @@ export default function FloatingToolbar({
       {toolBtn("select", MousePointer2, "선택")}
       {toolBtn("hand", Hand, "화면 이동")}
       {toolBtn("text", Type, "텍스트")}
+      {toolBtn("handwriting", PenLine, "필기 입력")}
       {toolBtn("table", Table2, "테이블")}
       {toolBtn("pin", Pin, "고정 메모")}
       {toolBtn("image", ImagePlus, "이미지")}
