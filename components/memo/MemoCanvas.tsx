@@ -34,7 +34,8 @@ export default function MemoCanvas() {
   const isRemoteAction = useRef(false);
 
   const [activeTool, setActiveTool] = useState<ToolType>("select");
-  const [overlayScale, setOverlayScale] = useState(1);
+  const [isFitAll, setIsFitAll] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const [penColor, setPenColor] = useState("#000000");
   const [bgColor, setBgColor] = useState(() => {
     if (typeof window === "undefined") return "#ffffff";
@@ -69,7 +70,6 @@ export default function MemoCanvas() {
 
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
-  const fitAllRef = useRef<() => void>(() => {});
   const undoRef = useRef<() => void>(() => {});
   const redoRef = useRef<() => void>(() => {});
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -232,6 +232,22 @@ export default function MemoCanvas() {
         fc.defaultCursor = "default";
       }
     });
+
+    // ─── 오버레이(핀메모/표) 동기화: 캔버스 줌·팬에 맞춰 CSS 변환 ───
+    const syncOverlay = () => {
+      if (!overlayRef.current) return;
+      const vt = fc.viewportTransform;
+      if (!vt) return;
+      const zoom = vt[0], panX = vt[4], panY = vt[5];
+      const ty = HEADER_H * (1 - zoom) + panY;
+      if (zoom === 1 && panX === 0 && ty === 0) {
+        overlayRef.current.style.transform = "";
+      } else {
+        overlayRef.current.style.transform = `matrix(${zoom},0,0,${zoom},${panX},${ty})`;
+        overlayRef.current.style.transformOrigin = "0 0";
+      }
+    };
+    fc.on("after:render", syncOverlay);
 
     // ─── Fabric 이벤트 ───
     fc.on("object:modified", (e) => {
@@ -514,6 +530,7 @@ export default function MemoCanvas() {
       fc.off("selection:created", updateSelectedText);
       fc.off("selection:updated", updateSelectedText);
       fc.off("selection:cleared");
+      fc.off("after:render", syncOverlay);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       socket.disconnect();
       fc.dispose();
@@ -711,15 +728,14 @@ export default function MemoCanvas() {
     const fc = fabricRef.current;
     if (!fc) return;
     // 토글: 이미 축소 상태면 원래 크기로 복귀
-    if (overlayScale < 1) {
+    if (isFitAll) {
       fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
       fc.renderAll();
-      setOverlayScale(1);
+      setIsFitAll(false);
       return;
     }
-    // 뷰포트 리셋
+    // 뷰포트 리셋 후 모든 콘텐츠 범위 계산
     fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    // 모든 콘텐츠(캔버스+핀+테이블)의 최대 범위 계산
     let maxX = 0, maxY = 0;
     fc.getObjects().forEach((obj) => {
       const bound = obj.getBoundingRect();
@@ -741,17 +757,15 @@ export default function MemoCanvas() {
     const scaleX = (maxX + padding) > canvasW ? canvasW / (maxX + padding) : 1;
     const scaleY = (maxY + padding) > canvasH ? canvasH / (maxY + padding) : 1;
     const scale = Math.min(scaleX, scaleY, 1);
-    // 동일 비율을 캔버스와 오버레이에 함께 적용
     fc.setViewportTransform([scale, 0, 0, scale, 0, 0]);
     fc.renderAll();
-    setOverlayScale(scale);
-  }, [overlayScale]);
-  fitAllRef.current = handleFitAll;
+    setIsFitAll(true);
+  }, [isFitAll]);
 
   const handleZoomIn = useCallback(() => {
     const fc = fabricRef.current;
     if (!fc) return;
-    setOverlayScale(1); // 수동 줌 시 전체보기 스케일 해제
+    setIsFitAll(false);
     let zoom = fc.getZoom() * 1.2;
     if (zoom > 5) zoom = 5;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
@@ -760,7 +774,7 @@ export default function MemoCanvas() {
   const handleZoomOut = useCallback(() => {
     const fc = fabricRef.current;
     if (!fc) return;
-    setOverlayScale(1); // 수동 줌 시 전체보기 스케일 해제
+    setIsFitAll(false);
     let zoom = fc.getZoom() / 1.2;
     if (zoom < 0.3) zoom = 0.3;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
@@ -980,9 +994,7 @@ export default function MemoCanvas() {
         </div>
       )}
 
-      <div
-        style={overlayScale < 1 ? { transform: `scale(${overlayScale})`, transformOrigin: "0 0" } : undefined}
-      >
+      <div ref={overlayRef}>
         {tables.map((table) => (
           <TableOverlay key={table.id} table={table} onUpdate={handleTableUpdate} onRemove={handleTableRemove} />
         ))}
