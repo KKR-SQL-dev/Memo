@@ -31,7 +31,7 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
-  const fontSize = memo.fontSize || 16;
+  const fontSize = memo.fontSize || 32;
   const fontWeight = memo.fontWeight || "normal";
   const fontStyle = memo.fontStyle || "normal";
   const textDecoration = memo.textDecoration || "none";
