@@ -119,7 +119,7 @@ export default function FloatingToolbar({
       {toolBtn("select", MousePointer2, "선택")}
       {toolBtn("hand", Hand, "화면 이동")}
       {toolBtn("text", Type, "텍스트")}
-      {toolBtn("handwriting", PenLine, "필기 입력")}
+      {toolBtn("handwriting", PenLine, "스마트펜")}
       {toolBtn("table", Table2, "테이블")}
       {toolBtn("pin", Pin, "고정 메모")}
       {toolBtn("image", ImagePlus, "이미지")}
