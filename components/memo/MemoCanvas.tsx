@@ -56,7 +56,7 @@ export default function MemoCanvas() {
   const [textBold, setTextBold] = useState(false);
   const [textItalic, setTextItalic] = useState(false);
   const [textUnderline, setTextUnderline] = useState(false);
-  const [textSize, setTextSize] = useState(24);
+  const [textSize, setTextSize] = useState(32);
   const [pinMemos, setPinMemos] = useState<PinMemoData[]>([]);
   const [selectedTextInfo, setSelectedTextInfo] = useState<{
     obj: IText; x: number; y: number;
@@ -875,7 +875,7 @@ export default function MemoCanvas() {
             </div>
             <div className="w-px h-5 bg-gray-300 dark:bg-[#555]" />
             <div className="flex items-center gap-1">
-              {["#1f2937", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"].map((c) => (
+              {["#1f2937", "#ffffff", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"].map((c) => (
                 <button
                   key={c}
                   onClick={() => setPenColor(c)}
@@ -988,7 +988,7 @@ export default function MemoCanvas() {
 
           {/* Colors */}
           <div className="flex items-center gap-1">
-            {["#1f2937", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"].map((c) => (
+            {["#1f2937", "#ffffff", "#c07070", "#6b8db5", "#6ba37a", "#b89b6b"].map((c) => (
               <button
                 key={c}
                 onClick={() => {
