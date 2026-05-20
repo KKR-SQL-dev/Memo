@@ -710,6 +710,13 @@ export default function MemoCanvas() {
   const handleFitAll = useCallback(() => {
     const fc = fabricRef.current;
     if (!fc) return;
+    // 토글: 이미 축소 상태면 원래 크기로 복귀
+    if (overlayScale < 1) {
+      fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      fc.renderAll();
+      setOverlayScale(1);
+      return;
+    }
     // 뷰포트 리셋
     fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
     // 모든 콘텐츠(캔버스+핀+테이블)의 최대 범위 계산
@@ -727,7 +734,7 @@ export default function MemoCanvas() {
       maxX = Math.max(maxX, t.x + t.width);
       maxY = Math.max(maxY, t.y + t.height);
     });
-    if (maxX <= 0 && maxY <= 0) { fc.renderAll(); setOverlayScale(1); return; }
+    if (maxX <= 0 && maxY <= 0) { fc.renderAll(); return; }
     const canvasW = fc.getWidth();
     const canvasH = fc.getHeight();
     const padding = 40;
@@ -738,7 +745,7 @@ export default function MemoCanvas() {
     fc.setViewportTransform([scale, 0, 0, scale, 0, 0]);
     fc.renderAll();
     setOverlayScale(scale);
-  }, []);
+  }, [overlayScale]);
   fitAllRef.current = handleFitAll;
 
   const handleZoomIn = useCallback(() => {
@@ -975,7 +982,6 @@ export default function MemoCanvas() {
 
       <div
         style={overlayScale < 1 ? { transform: `scale(${overlayScale})`, transformOrigin: "0 0" } : undefined}
-        onClick={overlayScale < 1 ? () => setOverlayScale(1) : undefined}
       >
         {tables.map((table) => (
           <TableOverlay key={table.id} table={table} onUpdate={handleTableUpdate} onRemove={handleTableRemove} />
