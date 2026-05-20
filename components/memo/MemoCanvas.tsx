@@ -1184,7 +1184,40 @@ export default function MemoCanvas() {
       </div>
 
       <FloatingToolbar
-        activeTool={activeTool} onToolChange={setActiveTool}
+        activeTool={activeTool} onToolChange={(tool) => {
+          if (tool === "image") {
+            // 이미지 도구: 바로 파일 선택 다이얼로그 열기
+            const fc = fabricRef.current;
+            if (!fc) return;
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = "image/*";
+            input.onchange = () => {
+              const file = input.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                FabricImage.fromURL(reader.result as string).then((img) => {
+                  if (img.width && img.width > 800) img.scaleToWidth(800);
+                  const cx = fc.getWidth() / 2, cy = fc.getHeight() / 2;
+                  const vt = fc.viewportTransform || [1, 0, 0, 1, 0, 0];
+                  img.set({ left: (cx - vt[4]) / vt[0], top: (cy - vt[5]) / vt[3] });
+                  setObjId(img);
+                  fc.add(img);
+                  fc.setActiveObject(img);
+                  fc.renderAll();
+                  saveSnapshot();
+                  scheduleSave();
+                  emitIfLocal("object:added", { id: getObjId(img), data: img.toJSON() });
+                });
+              };
+              reader.readAsDataURL(file);
+            };
+            input.click();
+            return;
+          }
+          setActiveTool(tool);
+        }}
         penColor={penColor} onPenColorChange={setPenColor}
         bgColor={bgColor} onBgColorChange={setBgColor}
         eraserSize={eraserSize} onEraserSizeChange={setEraserSize}
