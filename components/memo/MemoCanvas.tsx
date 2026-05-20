@@ -32,6 +32,7 @@ export default function MemoCanvas() {
   const fabricRef = useRef<Canvas | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const isRemoteAction = useRef(false);
+  const skipFlushRef = useRef(false);
   const zoomRef = useRef(1);
 
   const [activeTool, setActiveTool] = useState<ToolType>("select");
@@ -108,6 +109,7 @@ export default function MemoCanvas() {
 
   // ─── 즉시 저장 (flush) ───
   const flushSave = useCallback(() => {
+    if (skipFlushRef.current) return;
     const fc = fabricRef.current;
     if (!fc) return;
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
@@ -983,6 +985,8 @@ export default function MemoCanvas() {
       });
       const data = await res.json();
       if (data.success) {
+        skipFlushRef.current = true;
+        if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
         setShowHistory(false);
         window.location.reload();
       } else { alert("복구 실패"); }
