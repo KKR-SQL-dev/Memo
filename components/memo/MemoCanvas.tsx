@@ -59,8 +59,6 @@ export default function MemoCanvas() {
   const [textSize, setTextSize] = useState(32);
   const [pinMemos, setPinMemos] = useState<PinMemoData[]>([]);
   const [deleteBtn, setDeleteBtn] = useState<{ x: number; y: number } | null>(null);
-  const [hwPad, setHwPad] = useState<{ sceneX: number; sceneY: number; screenY: number } | null>(null);
-  const hwTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [selectedTextInfo, setSelectedTextInfo] = useState<{
     obj: IText; x: number; y: number;
   } | null>(null);
@@ -660,8 +658,9 @@ export default function MemoCanvas() {
         return;
       } else if (activeTool === "handwriting") {
         const e = opt.e as MouseEvent | TouchEvent;
+        const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
         const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-        setHwPad({ sceneX: pointer.x, sceneY: pointer.y, screenY: clientY });
+        setTextInput({ x: clientX, y: clientY, sceneX: pointer.x, sceneY: pointer.y });
         return;
       } else if (activeTool === "pin") {
         const e = opt.e as MouseEvent | TouchEvent;
@@ -744,42 +743,6 @@ export default function MemoCanvas() {
     setTextInput(null);
     setActiveTool("select");
   }, [textInput, penColor, textSize, textBold, textItalic, textUnderline, saveSnapshot, scheduleSave, emitIfLocal]);
-
-  // 스마트펜 입력 확정
-  const commitHwText = useCallback(() => {
-    const fc = fabricRef.current;
-    const value = hwTextareaRef.current?.value?.trim();
-    if (!fc || !hwPad || !value) { setHwPad(null); return; }
-    const text = new IText(value, {
-      left: hwPad.sceneX, top: hwPad.sceneY, fontSize: 32,
-      fill: penColor, fontFamily: "sans-serif", editable: true,
-    });
-    setObjId(text);
-    fc.add(text);
-    fc.setActiveObject(text);
-    fc.renderAll();
-    saveSnapshot();
-    scheduleSave();
-    emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
-    setHwPad(null);
-    setActiveTool("select");
-  }, [hwPad, penColor, saveSnapshot, scheduleSave, emitIfLocal]);
-
-  // 스마트펜: 3초 입력 없으면 자동 확정
-  useEffect(() => {
-    if (!hwPad) return;
-    const textarea = hwTextareaRef.current;
-    if (!textarea) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const handleInput = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (textarea.value.trim()) commitHwText();
-      }, 3000);
-    };
-    textarea.addEventListener("input", handleInput);
-    return () => { clearTimeout(timer); textarea.removeEventListener("input", handleInput); };
-  }, [hwPad, commitHwText]);
 
   const handleTableUpdate = useCallback((updated: TableData) => {
     setTables((p) => p.map((t) => (t.id === updated.id ? updated : t)));
@@ -976,39 +939,6 @@ export default function MemoCanvas() {
             placeholder="텍스트 입력... (Esc로 확정)"
             inputMode="text"
           />
-        </div>
-      )}
-
-      {/* 스마트펜: 화면에 직접 쓰는 투명 입력 영역 */}
-      {hwPad && (
-        <div className="absolute inset-0 z-50" onClick={() => commitHwText()}>
-          <div
-            className="absolute left-4 right-4"
-            style={{ top: Math.max(HEADER_H + 8, hwPad.screenY - 80) }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <textarea
-              ref={hwTextareaRef}
-              autoFocus
-              className="w-full h-44 p-5 text-2xl bg-white/10 dark:bg-white/5 backdrop-blur-sm border-2 border-dashed border-blue-400/60 rounded-2xl text-gray-800 dark:text-gray-100 outline-none resize-none focus:border-blue-500 transition-colors"
-              placeholder="펜으로 여기에 작성하세요... (3초 후 자동 확정)"
-              inputMode="text"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitHwText(); }
-                if (e.key === "Escape") setHwPad(null);
-              }}
-            />
-            <div className="flex justify-end gap-2 mt-2">
-              <button
-                onClick={() => setHwPad(null)}
-                className="px-5 py-2 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/10 transition-colors text-sm"
-              >취소</button>
-              <button
-                onClick={commitHwText}
-                className="px-5 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors text-sm font-medium"
-              >확인</button>
-            </div>
-          </div>
         </div>
       )}
 
