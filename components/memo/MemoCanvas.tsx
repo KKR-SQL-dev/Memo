@@ -521,8 +521,19 @@ export default function MemoCanvas() {
       isRemoteAction.current = false;
     });
 
+    // ─── 화면 꺼짐 방지 (Wake Lock) ───
+    let wakeLock: WakeLockSentinel | null = null;
+    const requestWakeLock = async () => {
+      try { wakeLock = await navigator.wakeLock.request("screen"); } catch { /* ignore */ }
+    };
+    requestWakeLock();
+    const handleVisibilityChange = () => { if (document.visibilityState === "visible") requestWakeLock(); };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       disposed = true;
+      wakeLock?.release();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("paste", handlePaste);
