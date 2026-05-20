@@ -978,20 +978,45 @@ export default function MemoCanvas() {
   const handleRestoreHistory = useCallback(async (backupId: number) => {
     if (!confirm("이 시점으로 되돌리시겠습니까?")) return;
     try {
+      // 복구 API 호출
       const res = await fetch("/api/memo/history/restore", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ backupId }),
       });
       const data = await res.json();
-      if (data.success) {
-        skipFlushRef.current = true;
-        if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
-        setShowHistory(false);
-        window.location.reload();
-      } else { alert("복구 실패"); }
+      if (!data.success) { alert("복구 실패"); return; }
+
+      // pending 저장 취소
+      if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+
+      // 복구된 데이터를 서버에서 다시 가져와서 캔버스에 직접 로드
+      const memoRes = await fetch("/api/memo");
+      const memoData = await memoRes.json();
+      const fc = fabricRef.current;
+      if (fc && memoData.canvas_json) {
+        isRemoteAction.current = true;
+        fc.getObjects().forEach((obj) => fc.remove(obj));
+        await fc.loadFromJSON(JSON.parse(memoData.canvas_json));
+        fc.getObjects().forEach((obj) => {
+          const j = obj.toJSON() as { _customId?: string };
+          if (j._customId) setObjId(obj, j._customId);
+          else setObjId(obj);
+        });
+        fc.renderAll();
+        saveSnapshot();
+        isRemoteAction.current = false;
+      }
+      if (memoData.overlay_data) {
+        try {
+          const overlay = JSON.parse(memoData.overlay_data);
+          if (Array.isArray(overlay)) { setTables(overlay); }
+          else { setTables(overlay.tables || []); setPinMemos(overlay.pins || []); }
+        } catch { /* ignore */ }
+      }
+      setShowHistory(false);
     } catch { alert("복구 실패"); }
-  }, []);
+  }, [saveSnapshot, emitIfLocal]);
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-white dark:bg-[#121218]">
