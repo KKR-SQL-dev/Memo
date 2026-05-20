@@ -36,7 +36,7 @@ export default function MemoCanvas() {
   const [activeTool, setActiveTool] = useState<ToolType>("select");
   const [isFitAll, setIsFitAll] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const [penColor, setPenColor] = useState("#000000");
+  const [penColor, setPenColor] = useState("#ffffff");
   const [bgColor, setBgColor] = useState(() => {
     if (typeof window === "undefined") return "#ffffff";
     return localStorage.getItem("memo-theme") === "dark" ? "#1e1e2e" : "#ffffff";

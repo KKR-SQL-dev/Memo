@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { Plus, Minus, X, GripVertical, GripHorizontal } from "lucide-react";
+import { Plus, Minus, X, GripVertical, GripHorizontal, Move } from "lucide-react";
 
 export interface TableData {
   id: string;
@@ -25,25 +25,33 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
   const resizeHRef = useRef<{ startY: number; origH: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // 드래그 이동
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
+  // 드래그 이동 (마우스 + 터치)
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if ((e.target as HTMLElement).closest("input, button, .resize-handle")) return;
     e.preventDefault();
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: table.x, origY: table.y };
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    dragRef.current = { startX: clientX, startY: clientY, origX: table.x, origY: table.y };
     setIsDragging(true);
 
-    const handleMove = (ev: MouseEvent) => {
+    const handleMove = (ev: MouseEvent | TouchEvent) => {
       if (!dragRef.current) return;
-      onUpdate({ ...table, x: dragRef.current.origX + ev.clientX - dragRef.current.startX, y: dragRef.current.origY + ev.clientY - dragRef.current.startY });
+      const cx = "touches" in ev ? ev.touches[0].clientX : ev.clientX;
+      const cy = "touches" in ev ? ev.touches[0].clientY : ev.clientY;
+      onUpdate({ ...table, x: dragRef.current.origX + cx - dragRef.current.startX, y: dragRef.current.origY + cy - dragRef.current.startY });
     };
     const handleUp = () => {
       dragRef.current = null;
       setIsDragging(false);
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("touchmove", handleMove);
+      window.removeEventListener("touchend", handleUp);
     };
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
+    window.addEventListener("touchmove", handleMove);
+    window.addEventListener("touchend", handleUp);
   }, [table, onUpdate]);
 
   // 너비 리사이즈
@@ -110,30 +118,40 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
   return (
     <div
       className="absolute z-30 group"
-      style={{ left: table.x, top: table.y, cursor: isDragging ? "grabbing" : "grab" }}
-      onMouseDown={handleDragStart}
+      style={{ left: table.x, top: table.y }}
     >
-      {/* 컨트롤 버튼 */}
-      <div className="absolute -top-11 right-0 flex gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
-        <button onClick={addRow} className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors" title="행 추가">
-          <Plus size={12} /> 행
-        </button>
-        <button onClick={removeRow} className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors" title="행 삭제">
-          <Minus size={12} /> 행
-        </button>
-        <button onClick={addCol} className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors" title="열 추가">
-          <Plus size={12} /> 열
-        </button>
-        <button onClick={removeCol} className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors" title="열 삭제">
-          <Minus size={12} /> 열
-        </button>
-        <button onClick={() => onRemove(table.id)} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-500 transition-colors" title="삭제">
-          <X size={12} />
-        </button>
+      {/* 드래그 핸들 바 (터치 친화적, 표 위에 큰 영역) */}
+      <div
+        className="flex items-center justify-between px-2 py-2 rounded-t-lg"
+        style={{ backgroundColor: table.headerColor, cursor: isDragging ? "grabbing" : "grab", width: table.width }}
+        onMouseDown={handleDragStart}
+        onTouchStart={handleDragStart}
+      >
+        <div className="flex items-center gap-2 text-white/80">
+          <Move size={18} />
+          <span className="text-xs font-medium select-none">이동</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button onClick={addRow} className="px-2 py-1 bg-white/20 text-white rounded text-xs hover:bg-white/30 transition-colors" title="행 추가">
+            <Plus size={12} />행
+          </button>
+          <button onClick={removeRow} className="px-2 py-1 bg-white/20 text-white rounded text-xs hover:bg-white/30 transition-colors" title="행 삭제">
+            <Minus size={12} />행
+          </button>
+          <button onClick={addCol} className="px-2 py-1 bg-white/20 text-white rounded text-xs hover:bg-white/30 transition-colors" title="열 추가">
+            <Plus size={12} />열
+          </button>
+          <button onClick={removeCol} className="px-2 py-1 bg-white/20 text-white rounded text-xs hover:bg-white/30 transition-colors" title="열 삭제">
+            <Minus size={12} />열
+          </button>
+          <button onClick={() => onRemove(table.id)} className="px-2 py-1 bg-red-500/80 text-white rounded text-xs hover:bg-red-500 transition-colors" title="삭제">
+            <X size={12} />
+          </button>
+        </div>
       </div>
 
       {/* 테이블 */}
-      <table className="border-collapse shadow-lg rounded-lg overflow-hidden text-sm select-none" style={{ width: table.width }}>
+      <table className="border-collapse shadow-lg rounded-b-lg overflow-hidden text-sm select-none" style={{ width: table.width }}>
         <tbody>
           {table.rows.map((row, ri) => (
             <tr key={ri}>
