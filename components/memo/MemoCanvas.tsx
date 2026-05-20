@@ -59,6 +59,8 @@ export default function MemoCanvas() {
   const [textSize, setTextSize] = useState(32);
   const [pinMemos, setPinMemos] = useState<PinMemoData[]>([]);
   const [deleteBtn, setDeleteBtn] = useState<{ x: number; y: number } | null>(null);
+  const [hwPad, setHwPad] = useState<{ sceneX: number; sceneY: number } | null>(null);
+  const hwTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [selectedTextInfo, setSelectedTextInfo] = useState<{
     obj: IText; x: number; y: number;
   } | null>(null);
@@ -295,11 +297,8 @@ export default function MemoCanvas() {
       const path = (e as unknown as { path: FabricObject }).path;
       if (path) {
         setObjId(path);
-        // 필기 인식 모드에서는 경로를 소켓으로 보내지 않음 (텍스트로 변환 예정)
-        if (activeToolRef.current !== "handwriting") {
-          emitIfLocal("drawing:path", { id: getObjId(path), data: path.toJSON() });
-          scheduleSave();
-        }
+        emitIfLocal("drawing:path", { id: getObjId(path), data: path.toJSON() });
+        scheduleSave();
         // 스트로크 간 끊김 방지: 스냅샷을 다음 프레임으로 지연
         requestAnimationFrame(() => saveSnapshot());
       }
@@ -609,17 +608,10 @@ export default function MemoCanvas() {
       brush.color = bgColor;
       brush.width = eraserSize;
       fc.freeDrawingBrush = brush;
-    } else if (activeTool === "handwriting") {
-      fc.isDrawingMode = true;
-      const brush = new PencilBrush(fc);
-      brush.color = penColor;
-      brush.width = 2;
-      brush.decimate = 2;
-      fc.freeDrawingBrush = brush;
     } else if (activeTool === "hand") {
       fc.selection = false;
       fc.defaultCursor = "grab";
-    } else if (["text", "pin", "table", "image"].includes(activeTool)) {
+    } else if (["text", "handwriting", "pin", "table", "image"].includes(activeTool)) {
       fc.selection = false;
       fc.defaultCursor = "crosshair";
     }
@@ -629,125 +621,6 @@ export default function MemoCanvas() {
     const fc = fabricRef.current;
     if (fc) { fc.backgroundColor = bgColor; fc.renderAll(); }
   }, [bgColor]);
-
-  // ─── 필기 인식 (Handwriting Recognition API) ───
-  useEffect(() => {
-    if (activeTool !== "handwriting") return;
-    const fc = fabricRef.current;
-    if (!fc) return;
-
-    interface StrokeData { points: Array<{ x: number; y: number; t: number }>; }
-    let strokes: StrokeData[] = [];
-    let currentPoints: Array<{ x: number; y: number; t: number }> | null = null;
-    let drawnPaths: FabricObject[] = [];
-    let recognizeTimer: ReturnType<typeof setTimeout> | null = null;
-    let originScene: { x: number; y: number } | null = null;
-
-    const getPoint = (e: Event) => {
-      const me = e as MouseEvent | TouchEvent;
-      const el = fc.getSelectionElement();
-      if (!el) return null;
-      const rect = el.getBoundingClientRect();
-      const cx = "touches" in me ? me.touches[0]?.clientX ?? 0 : me.clientX;
-      const cy = "touches" in me ? me.touches[0]?.clientY ?? 0 : me.clientY;
-      return { x: cx - rect.left, y: cy - rect.top, t: Date.now() };
-    };
-
-    const handleDown = (opt: { e: Event; scenePoint?: { x: number; y: number } }) => {
-      const pt = getPoint(opt.e);
-      if (!pt) return;
-      currentPoints = [pt];
-      if (!originScene && opt.scenePoint) originScene = { x: opt.scenePoint.x, y: opt.scenePoint.y };
-      if (recognizeTimer) { clearTimeout(recognizeTimer); recognizeTimer = null; }
-    };
-
-    const handleMove = (opt: { e: Event }) => {
-      if (!currentPoints) return;
-      const pt = getPoint(opt.e);
-      if (pt) currentPoints.push(pt);
-    };
-
-    const handleUp = () => {
-      if (currentPoints && currentPoints.length > 1) {
-        strokes.push({ points: currentPoints });
-      }
-      currentPoints = null;
-      if (recognizeTimer) clearTimeout(recognizeTimer);
-      recognizeTimer = setTimeout(() => doRecognize(), 2000);
-    };
-
-    const handlePath = (e: unknown) => {
-      const path = (e as { path: FabricObject }).path;
-      if (path) drawnPaths.push(path);
-    };
-
-    const doRecognize = async () => {
-      if (strokes.length === 0) return;
-      const nav = navigator as unknown as { createHandwritingRecognizer?: (c: { languages: string[] }) => Promise<unknown> };
-      if (!nav.createHandwritingRecognizer) {
-        alert("이 브라우저에서는 필기 인식이 지원되지 않습니다.\nChrome 또는 Edge 최신 버전을 사용해 주세요.");
-        strokes = []; drawnPaths = []; originScene = null;
-        return;
-      }
-      try {
-        const recognizer = await nav.createHandwritingRecognizer({ languages: ["ko", "en"] }) as {
-          startDrawing: (h?: Record<string, string>) => {
-            addStroke: (s: unknown) => void;
-            getPrediction: () => Promise<Array<{ text: string }>>;
-            clear: () => void;
-          };
-          finish: () => void;
-        };
-        const drawing = recognizer.startDrawing({ recognitionType: "text", inputType: "pen" });
-        const HWStroke = (window as unknown as { HandwritingStroke: new () => { addPoint: (p: { x: number; y: number; t: number }) => void } }).HandwritingStroke;
-        for (const stroke of strokes) {
-          const hwStroke = new HWStroke();
-          for (const pt of stroke.points) hwStroke.addPoint({ x: pt.x, y: pt.y, t: pt.t });
-          drawing.addStroke(hwStroke);
-        }
-        const predictions = await drawing.getPrediction();
-        drawing.clear();
-        recognizer.finish();
-
-        if (predictions.length > 0 && predictions[0].text) {
-          // 캔버스에서 필기 경로 제거
-          for (const path of drawnPaths) {
-            emitIfLocal("object:removed", { id: getObjId(path) });
-            fc.remove(path);
-          }
-          const pos = originScene || { x: 100, y: 100 };
-          const text = new IText(predictions[0].text, {
-            left: pos.x, top: pos.y, fontSize: 32,
-            fill: penColor, fontFamily: "sans-serif", editable: true,
-          });
-          setObjId(text);
-          fc.add(text);
-          fc.setActiveObject(text);
-          fc.renderAll();
-          saveSnapshot();
-          scheduleSave();
-          emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
-        }
-      } catch (err) {
-        console.error("필기 인식 실패:", err);
-        alert("필기 인식에 실패했습니다: " + (err as Error).message);
-      }
-      strokes = []; drawnPaths = []; originScene = null;
-    };
-
-    fc.on("mouse:down", handleDown);
-    fc.on("mouse:move", handleMove);
-    fc.on("mouse:up", handleUp);
-    fc.on("path:created", handlePath);
-
-    return () => {
-      if (recognizeTimer) clearTimeout(recognizeTimer);
-      fc.off("mouse:down", handleDown);
-      fc.off("mouse:move", handleMove);
-      fc.off("mouse:up", handleUp);
-      fc.off("path:created", handlePath);
-    };
-  }, [activeTool, penColor, saveSnapshot, scheduleSave, emitIfLocal]);
 
   // ─── 캔버스 클릭 → 객체 생성 ───
   useEffect(() => {
@@ -769,6 +642,9 @@ export default function MemoCanvas() {
         const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
         const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
         setTextInput({ x: clientX, y: clientY, sceneX: pointer.x, sceneY: pointer.y });
+        return;
+      } else if (activeTool === "handwriting") {
+        setHwPad({ sceneX: pointer.x, sceneY: pointer.y });
         return;
       } else if (activeTool === "pin") {
         const e = opt.e as MouseEvent | TouchEvent;
@@ -851,6 +727,26 @@ export default function MemoCanvas() {
     setTextInput(null);
     setActiveTool("select");
   }, [textInput, penColor, textSize, textBold, textItalic, textUnderline, saveSnapshot, scheduleSave, emitIfLocal]);
+
+  // 스마트펜 입력 확정
+  const commitHwText = useCallback(() => {
+    const fc = fabricRef.current;
+    const value = hwTextareaRef.current?.value?.trim();
+    if (!fc || !hwPad || !value) { setHwPad(null); return; }
+    const text = new IText(value, {
+      left: hwPad.sceneX, top: hwPad.sceneY, fontSize: 32,
+      fill: penColor, fontFamily: "sans-serif", editable: true,
+    });
+    setObjId(text);
+    fc.add(text);
+    fc.setActiveObject(text);
+    fc.renderAll();
+    saveSnapshot();
+    scheduleSave();
+    emitIfLocal("object:added", { id: getObjId(text), data: text.toJSON() });
+    setHwPad(null);
+    setActiveTool("select");
+  }, [hwPad, penColor, saveSnapshot, scheduleSave, emitIfLocal]);
 
   const handleTableUpdate = useCallback((updated: TableData) => {
     setTables((p) => p.map((t) => (t.id === updated.id ? updated : t)));
@@ -1048,6 +944,41 @@ export default function MemoCanvas() {
             placeholder="텍스트 입력..."
             inputMode="text"
           />
+        </div>
+      )}
+
+      {/* 스마트펜 입력 패드 */}
+      {hwPad && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setHwPad(null)}>
+          <div
+            className="bg-white dark:bg-[#2a2a3e] rounded-2xl shadow-2xl p-6 w-[90vw] max-w-[700px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base text-gray-500 dark:text-gray-400 mb-4">
+              펜으로 아래 입력창에 작성하면 텍스트로 변환됩니다
+            </p>
+            <textarea
+              ref={hwTextareaRef}
+              autoFocus
+              className="w-full h-52 p-5 text-2xl border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-[#1e1e2e] text-gray-800 dark:text-gray-200 outline-none resize-none focus:border-blue-400 dark:focus:border-blue-500 transition-colors"
+              placeholder="여기에 펜으로 작성하세요..."
+              inputMode="text"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitHwText(); }
+                if (e.key === "Escape") setHwPad(null);
+              }}
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => setHwPad(null)}
+                className="px-6 py-2.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors text-base"
+              >취소</button>
+              <button
+                onClick={commitHwText}
+                className="px-6 py-2.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors text-base font-medium"
+              >확인</button>
+            </div>
+          </div>
         </div>
       )}
 
