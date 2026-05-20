@@ -70,6 +70,8 @@ export default function MemoCanvas() {
 
   const tablesRef = useRef<TableData[]>([]);
   tablesRef.current = tables;
+  const bgColorRef = useRef(bgColor);
+  bgColorRef.current = bgColor;
   const undoRef = useRef<() => void>(() => {});
   const redoRef = useRef<() => void>(() => {});
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -512,7 +514,7 @@ export default function MemoCanvas() {
       if (disposed) return;
       isRemoteAction.current = true;
       fc.clear();
-      fc.backgroundColor = isDarkRef.current ? "#1e1e2e" : "#ffffff";
+      fc.backgroundColor = bgColorRef.current;
       fc.renderAll();
       setTables([]);
       setPinMemos([]);
@@ -783,7 +785,7 @@ export default function MemoCanvas() {
   const handleClear = useCallback(async () => {
     if (!confirm("메모판을 전체삭제 하시겠습니까?")) return;
     const fc = fabricRef.current;
-    if (fc) { fc.clear(); fc.backgroundColor = isDark ? "#1e1e2e" : "#ffffff"; fc.renderAll(); }
+    if (fc) { fc.clear(); fc.backgroundColor = bgColor; fc.renderAll(); }
     setTables([]);
     setPinMemos([]);
     setUndoStack([]);
