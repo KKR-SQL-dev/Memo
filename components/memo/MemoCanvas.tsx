@@ -178,8 +178,6 @@ export default function MemoCanvas() {
     const handleResize = () => {
       fc.setDimensions({ width: window.innerWidth, height: window.innerHeight - HEADER_H });
       fc.renderAll();
-      // 화면 크기 변경 시 자동 전체보기 (2분할 전환 등)
-      requestAnimationFrame(() => fitAllRef.current());
     };
     window.addEventListener("resize", handleResize);
 
@@ -380,8 +378,6 @@ export default function MemoCanvas() {
               });
               fc.renderAll();
               saveSnapshot();
-              // 초기 로드 후 자동 전체보기
-              requestAnimationFrame(() => fitAllRef.current());
             });
           } catch { /* ignore */ }
         }
@@ -714,59 +710,41 @@ export default function MemoCanvas() {
   const handleFitAll = useCallback(() => {
     const fc = fabricRef.current;
     if (!fc) return;
-    const objects = fc.getObjects();
-    // 캔버스 오브젝트 전체보기
-    if (objects.length > 0) {
-      fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      objects.forEach((obj) => {
-        const bound = obj.getBoundingRect();
-        minX = Math.min(minX, bound.left);
-        minY = Math.min(minY, bound.top);
-        maxX = Math.max(maxX, bound.left + bound.width);
-        maxY = Math.max(maxY, bound.top + bound.height);
-      });
-      const padding = 60;
-      const contentW = (maxX - minX) + padding * 2;
-      const contentH = (maxY - minY) + padding * 2;
-      const canvasW = fc.getWidth();
-      const canvasH = fc.getHeight();
-      const zoom = Math.min(canvasW / contentW, canvasH / contentH, 1);
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      const panX = canvasW / 2 - zoom * centerX;
-      const panY = canvasH / 2 - zoom * centerY;
-      fc.setViewportTransform([zoom, 0, 0, zoom, panX, panY]);
-      fc.renderAll();
-    } else {
-      fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
-      fc.renderAll();
-    }
-    // 화면 밖 핀메모/테이블 → CSS 스케일로 축소 (원본 데이터 유지)
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let overlayMaxX = 0, overlayMaxY = 0;
+    // 뷰포트 리셋
+    fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    // 모든 콘텐츠(캔버스+핀+테이블)의 최대 범위 계산
+    let maxX = 0, maxY = 0;
+    fc.getObjects().forEach((obj) => {
+      const bound = obj.getBoundingRect();
+      maxX = Math.max(maxX, bound.left + bound.width);
+      maxY = Math.max(maxY, bound.top + bound.height);
+    });
     pinMemosRef.current.forEach((pin) => {
-      overlayMaxX = Math.max(overlayMaxX, pin.x + 288);
-      overlayMaxY = Math.max(overlayMaxY, pin.y + 200);
+      maxX = Math.max(maxX, pin.x + 288);
+      maxY = Math.max(maxY, pin.y + 200);
     });
     tablesRef.current.forEach((t) => {
-      overlayMaxX = Math.max(overlayMaxX, t.x + t.width);
-      overlayMaxY = Math.max(overlayMaxY, t.y + t.height);
+      maxX = Math.max(maxX, t.x + t.width);
+      maxY = Math.max(maxY, t.y + t.height);
     });
-    if (overlayMaxX > vw || overlayMaxY > vh) {
-      const scaleX = overlayMaxX > vw ? (vw - 20) / overlayMaxX : 1;
-      const scaleY = overlayMaxY > vh ? (vh - 20) / overlayMaxY : 1;
-      setOverlayScale(Math.min(scaleX, scaleY));
-    } else {
-      setOverlayScale(1);
-    }
-  }, [scheduleSave]);
+    if (maxX <= 0 && maxY <= 0) { fc.renderAll(); setOverlayScale(1); return; }
+    const canvasW = fc.getWidth();
+    const canvasH = fc.getHeight();
+    const padding = 40;
+    const scaleX = (maxX + padding) > canvasW ? canvasW / (maxX + padding) : 1;
+    const scaleY = (maxY + padding) > canvasH ? canvasH / (maxY + padding) : 1;
+    const scale = Math.min(scaleX, scaleY, 1);
+    // 동일 비율을 캔버스와 오버레이에 함께 적용
+    fc.setViewportTransform([scale, 0, 0, scale, 0, 0]);
+    fc.renderAll();
+    setOverlayScale(scale);
+  }, []);
   fitAllRef.current = handleFitAll;
 
   const handleZoomIn = useCallback(() => {
     const fc = fabricRef.current;
     if (!fc) return;
+    setOverlayScale(1); // 수동 줌 시 전체보기 스케일 해제
     let zoom = fc.getZoom() * 1.2;
     if (zoom > 5) zoom = 5;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
@@ -775,6 +753,7 @@ export default function MemoCanvas() {
   const handleZoomOut = useCallback(() => {
     const fc = fabricRef.current;
     if (!fc) return;
+    setOverlayScale(1); // 수동 줌 시 전체보기 스케일 해제
     let zoom = fc.getZoom() / 1.2;
     if (zoom < 0.3) zoom = 0.3;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
