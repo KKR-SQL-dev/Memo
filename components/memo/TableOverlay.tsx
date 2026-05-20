@@ -114,7 +114,7 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
       onMouseDown={handleDragStart}
     >
       {/* 컨트롤 버튼 */}
-      <div className="absolute -top-11 right-0 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute -top-11 right-0 flex gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
         <button onClick={addRow} className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors" title="행 추가">
           <Plus size={12} /> 행
         </button>
@@ -166,7 +166,7 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
 
       {/* 오른쪽 리사이즈 핸들 (너비) */}
       <div
-        className="resize-handle absolute top-0 -right-4 h-full w-4 cursor-col-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        className="resize-handle absolute top-0 -right-4 h-full w-4 cursor-col-resize flex items-center justify-center opacity-40 group-hover:opacity-100 transition-opacity"
         onMouseDown={handleResizeW}
       >
         <GripVertical size={14} className="text-gray-400" />
@@ -174,7 +174,7 @@ export default function TableOverlay({ table, onUpdate, onRemove }: TableOverlay
 
       {/* 아래쪽 리사이즈 핸들 (높이) */}
       <div
-        className="resize-handle absolute -bottom-4 left-0 w-full h-4 cursor-row-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        className="resize-handle absolute -bottom-4 left-0 w-full h-4 cursor-row-resize flex items-center justify-center opacity-40 group-hover:opacity-100 transition-opacity"
         onMouseDown={handleResizeH}
       >
         <GripHorizontal size={14} className="text-gray-400" />

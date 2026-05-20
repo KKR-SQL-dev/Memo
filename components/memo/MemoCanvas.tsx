@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Canvas, IText, FabricImage, PencilBrush, FabricObject, Point, util } from "fabric";
 import { io, Socket } from "socket.io-client";
-import { Home, Trash2, Maximize2 } from "lucide-react";
+import { Home, Trash2, Maximize2, X } from "lucide-react";
 import FloatingToolbar, { type ToolType } from "./FloatingToolbar";
 import TableOverlay, { type TableData } from "./TableOverlay";
 import PinMemoOverlay, { type PinMemoData } from "./PinMemoOverlay";
@@ -58,6 +58,7 @@ export default function MemoCanvas() {
   const [textUnderline, setTextUnderline] = useState(false);
   const [textSize, setTextSize] = useState(32);
   const [pinMemos, setPinMemos] = useState<PinMemoData[]>([]);
+  const [deleteBtn, setDeleteBtn] = useState<{ x: number; y: number } | null>(null);
   const [selectedTextInfo, setSelectedTextInfo] = useState<{
     obj: IText; x: number; y: number;
   } | null>(null);
@@ -257,6 +258,7 @@ export default function MemoCanvas() {
       saveSnapshot();
       scheduleSave();
       emitIfLocal("object:modified", { id: getObjId(e.target), data: e.target.toJSON() });
+      updateSelection();
     });
 
     fc.on("object:removed", (e) => {
@@ -265,23 +267,29 @@ export default function MemoCanvas() {
       emitIfLocal("object:removed", { id: getObjId(e.target) });
     });
 
-    // ─── 텍스트 선택 시 서식 도구바 표시 ───
-    const updateSelectedText = () => {
+    // ─── 선택 시 삭제 버튼 + 텍스트 서식 도구바 표시 ───
+    const updateSelection = () => {
       const active = fc.getActiveObject();
-      if (active && active.type === "i-text") {
+      if (active) {
         const bound = active.getBoundingRect();
-        setSelectedTextInfo({
-          obj: active as IText,
-          x: bound.left + bound.width / 2,
-          y: bound.top - 10,
-        });
+        setDeleteBtn({ x: bound.left + bound.width + 4, y: bound.top - 4 });
+        if (active.type === "i-text") {
+          setSelectedTextInfo({
+            obj: active as IText,
+            x: bound.left + bound.width / 2,
+            y: bound.top - 10,
+          });
+        } else {
+          setSelectedTextInfo(null);
+        }
       } else {
+        setDeleteBtn(null);
         setSelectedTextInfo(null);
       }
     };
-    fc.on("selection:created", updateSelectedText);
-    fc.on("selection:updated", updateSelectedText);
-    fc.on("selection:cleared", () => setSelectedTextInfo(null));
+    fc.on("selection:created", updateSelection);
+    fc.on("selection:updated", updateSelection);
+    fc.on("selection:cleared", () => { setDeleteBtn(null); setSelectedTextInfo(null); });
 
     fc.on("path:created", (e) => {
       const path = (e as unknown as { path: FabricObject }).path;
@@ -394,6 +402,8 @@ export default function MemoCanvas() {
                 if (j._customId) setObjId(obj, j._customId);
                 else setObjId(obj);
               });
+              // 배경색 동기화 (지우개가 올바른 색 사용하도록)
+              if (fc.backgroundColor) setBgColor(fc.backgroundColor as string);
               fc.renderAll();
               saveSnapshot();
             });
@@ -540,8 +550,8 @@ export default function MemoCanvas() {
       document.removeEventListener("keydown", handleKeyDown);
       canvasEl?.removeEventListener("touchmove", handleTouchMove);
       canvasEl?.removeEventListener("touchend", handleTouchEnd);
-      fc.off("selection:created", updateSelectedText);
-      fc.off("selection:updated", updateSelectedText);
+      fc.off("selection:created", updateSelection);
+      fc.off("selection:updated", updateSelection);
       fc.off("selection:cleared");
       fc.off("after:render", syncOverlay);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -1005,6 +1015,33 @@ export default function MemoCanvas() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* 선택된 오브젝트 삭제 버튼 */}
+      {deleteBtn && (
+        <button
+          className="absolute z-50 w-9 h-9 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-colors"
+          style={{ left: deleteBtn.x, top: HEADER_H + deleteBtn.y - 12 }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => {
+            const fc = fabricRef.current;
+            if (!fc) return;
+            const active = fc.getActiveObjects();
+            active.forEach((obj) => {
+              emitIfLocal("object:removed", { id: getObjId(obj) });
+              fc.remove(obj);
+            });
+            fc.discardActiveObject();
+            fc.renderAll();
+            saveSnapshot();
+            scheduleSave();
+            setDeleteBtn(null);
+            setSelectedTextInfo(null);
+          }}
+          title="삭제"
+        >
+          <X size={18} />
+        </button>
       )}
 
       <div ref={overlayRef}>

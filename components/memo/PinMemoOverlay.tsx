@@ -95,7 +95,7 @@ export default function PinMemoOverlay({ memo, onUpdate, onRemove }: PinMemoOver
           </div>
           <button
             onClick={() => onRemove(memo.id)}
-            className="opacity-0 group-hover:opacity-100 p-1.5 text-amber-500 dark:text-amber-400 hover:text-red-400 transition-colors"
+            className="opacity-60 group-hover:opacity-100 p-1.5 text-amber-500 dark:text-amber-400 hover:text-red-400 transition-colors"
           >
             <X size={16} />
           </button>
