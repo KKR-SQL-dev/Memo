@@ -1228,30 +1228,33 @@ export default function MemoCanvas() {
       {/* 이력 모달 */}
       {showHistory && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={() => setShowHistory(false)}>
-          <div className="bg-white dark:bg-[#2a2a3e] rounded-xl shadow-2xl w-96 max-h-[70vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-[#444]">
-              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">이력</h3>
-              <div className="flex items-center gap-2">
-                <button onClick={handleSaveHistory} className="px-3 py-1 text-xs bg-sky-500 hover:bg-sky-600 text-white rounded-md transition-colors">
+          <div className="bg-white dark:bg-[#2a2a3e] rounded-2xl shadow-2xl w-[480px] max-h-[75vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-[#444]">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">이력 관리</h3>
+              <div className="flex items-center gap-3">
+                <button onClick={handleSaveHistory} className="px-5 py-2 text-sm font-medium bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors">
                   현재 상태 저장
                 </button>
-                <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                  <X size={16} />
+                <button onClick={() => setShowHistory(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                  <X size={20} />
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto max-h-[55vh] p-3">
+            <div className="overflow-y-auto max-h-[60vh] p-4">
               {historyList.length === 0 ? (
-                <p className="text-center text-sm text-gray-400 py-8">저장된 이력이 없습니다.</p>
+                <p className="text-center text-base text-gray-400 py-12">저장된 이력이 없습니다.</p>
               ) : (
                 historyList.map((h) => (
-                  <div key={h.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-[#333] transition-colors mb-1">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      {new Date(h.backed_up_at).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  <div key={h.id} className="flex items-center justify-between px-4 py-3.5 rounded-xl hover:bg-gray-100 dark:hover:bg-[#333] transition-colors mb-2">
+                    <span className="text-base text-gray-700 dark:text-gray-300">
+                      {(() => {
+                        const d = new Date(h.backed_up_at.replace(" ", "T") + "+09:00");
+                        return d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+                      })()}
                     </span>
                     <button
                       onClick={() => handleRestoreHistory(h.id)}
-                      className="px-3 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded-md transition-colors"
+                      className="px-5 py-2 text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors shrink-0 ml-4"
                     >
                       되돌리기
                     </button>

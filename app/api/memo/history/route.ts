@@ -22,7 +22,7 @@ export async function GET() {
     await ensureBackupTable();
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT id, backed_up_at FROM MemoBoard_Backup ORDER BY id DESC
+      SELECT id, CONVERT(VARCHAR(19), backed_up_at, 120) as backed_up_at FROM MemoBoard_Backup ORDER BY id DESC
     `);
     return NextResponse.json(result.recordset);
   } catch (err) {
