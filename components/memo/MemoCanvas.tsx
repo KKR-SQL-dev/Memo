@@ -1125,7 +1125,7 @@ export default function MemoCanvas() {
         <div
           className="pointer-events-none absolute top-0 bottom-0"
           style={{
-            left: "55%",
+            left: "65%",
             borderLeft: "2px dashed rgba(255,255,255,0.3)",
           }}
         />
