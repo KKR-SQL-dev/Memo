@@ -122,9 +122,19 @@ export default function MemoCanvas() {
         overlay_data: JSON.stringify({ tables: tablesRef.current, pins: pinMemosRef.current }),
         updated_by: "",
       };
-      // sendBeacon은 페이지 종료 시에도 확실히 전송됨
-      const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-      navigator.sendBeacon("/api/memo", blob);
+      const body = JSON.stringify(payload);
+      // sendBeacon 시도 (64KB 이하일 때만 성공)
+      const blob = new Blob([body], { type: "application/json" });
+      const sent = navigator.sendBeacon("/api/memo", blob);
+      // sendBeacon 실패 시 (페이로드 크기 초과 등) fetch로 재시도
+      if (!sent) {
+        fetch("/api/memo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          keepalive: true,
+        }).catch(() => {});
+      }
       if (socketRef.current) {
         socketRef.current.emit("canvas:sync", {
           canvas_json: payload.canvas_json,
@@ -594,7 +604,14 @@ export default function MemoCanvas() {
       try { wakeLock = await navigator.wakeLock.request("screen"); } catch { /* ignore */ }
     };
     requestWakeLock();
-    const handleVisibilityChange = () => { if (document.visibilityState === "visible") requestWakeLock(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        requestWakeLock();
+      } else {
+        // 탭 전환/화면 꺼짐 시 즉시 저장 (데이터 손실 방지)
+        flushRef.current();
+      }
+    };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
@@ -1125,7 +1142,7 @@ export default function MemoCanvas() {
         <div
           className="pointer-events-none absolute top-0 bottom-0"
           style={{
-            left: "65%",
+            left: "60%",
             borderLeft: "2px dashed rgba(255,255,255,0.3)",
           }}
         />
