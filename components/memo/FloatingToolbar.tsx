@@ -84,13 +84,13 @@ export default function FloatingToolbar({
     window.addEventListener("touchend", handleUp);
   }, [pos]);
 
-  const ICON = 42;
+  const ICON = 32;
 
   const toolBtn = (tool: ToolType, Icon: typeof Type, label: string) => (
     <button
       key={tool}
       onClick={() => onToolChange(tool)}
-      className={`p-5 rounded-2xl transition-colors ${
+      className={`p-3 rounded-xl transition-colors ${
         activeTool === tool
           ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30"
           : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"
@@ -104,7 +104,7 @@ export default function FloatingToolbar({
   return (
     <div
       ref={barRef}
-      className="absolute z-50 flex items-center gap-3 px-6 py-5 bg-white/95 dark:bg-[#1e1e2e]/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-200 dark:border-[#444]"
+      className="absolute z-50 flex items-center gap-1.5 px-4 py-3 bg-white/95 dark:bg-[#1e1e2e]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-[#444]"
       style={pos ? { left: pos.x, top: pos.y, cursor: isDragging ? "grabbing" : undefined } : { bottom: 24, left: "50%", transform: "translateX(-50%)" }}
     >
       {/* 드래그 핸들 */}
@@ -114,7 +114,7 @@ export default function FloatingToolbar({
         onTouchStart={handleDragStart}
         title="드래그하여 이동"
       >
-        <GripVertical size={36} />
+        <GripVertical size={24} />
       </div>
       {toolBtn("select", MousePointer2, "선택")}
       {toolBtn("hand", Hand, "화면 이동")}
@@ -123,14 +123,14 @@ export default function FloatingToolbar({
       {toolBtn("pin", Pin, "고정 메모")}
       {toolBtn("image", ImagePlus, "이미지")}
 
-      <div className="w-px h-16 bg-gray-300 dark:bg-[#555] mx-3" />
+      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
 
       {toolBtn("pen", Pencil, "펜")}
       {toolBtn("handwriting", PenLine, "스마트펜")}
       <div className="relative">
         <button
           onClick={() => { onToolChange("eraser"); setShowEraserSize(!showEraserSize); setShowPenColor(false); setShowBgColor(false); }}
-          className={`p-5 rounded-2xl transition-colors ${
+          className={`p-3 rounded-xl transition-colors ${
             activeTool === "eraser"
               ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30"
               : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"
@@ -163,13 +163,13 @@ export default function FloatingToolbar({
         )}
       </div>
 
-      <div className="w-px h-16 bg-gray-300 dark:bg-[#555] mx-3" />
+      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
 
       {/* 색상 */}
       <div className="relative">
         <button
           onClick={() => { setShowPenColor(!showPenColor); setShowBgColor(false); }}
-          className="p-5 rounded-2xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+          className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
           title="글자색"
         >
           <Palette size={ICON} />
@@ -181,7 +181,7 @@ export default function FloatingToolbar({
       <div className="relative">
         <button
           onClick={() => { setShowBgColor(!showBgColor); setShowPenColor(false); }}
-          className="p-5 rounded-2xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+          className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
           title="배경색"
         >
           <PaintBucket size={ICON} />
@@ -190,12 +190,12 @@ export default function FloatingToolbar({
         {showBgColor && <ColorPicker color={bgColor} onChange={onBgColorChange} onClose={() => setShowBgColor(false)} />}
       </div>
 
-      <div className="w-px h-16 bg-gray-300 dark:bg-[#555] mx-3" />
+      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
 
       <button
         onClick={onUndo}
         disabled={!canUndo}
-        className="p-5 rounded-2xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
+        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
         title="되돌리기 (Ctrl+Z)"
       >
         <Undo2 size={ICON} />
@@ -203,13 +203,13 @@ export default function FloatingToolbar({
       <button
         onClick={onRedo}
         disabled={!canRedo}
-        className="p-5 rounded-2xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
+        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
         title="다시실행 (Ctrl+Y)"
       >
         <Redo2 size={ICON} />
       </button>
 
-      <div className="w-px h-16 bg-gray-300 dark:bg-[#555] mx-3" />
+      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
 
       <button
         onClick={onZoomOut}
@@ -226,7 +226,7 @@ export default function FloatingToolbar({
         <ZoomIn size={ICON} />
       </button>
 
-      <div className="w-px h-16 bg-gray-300 dark:bg-[#555] mx-3" />
+      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
 
       <button
         onClick={() => {
