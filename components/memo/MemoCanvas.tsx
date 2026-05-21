@@ -113,6 +113,7 @@ export default function MemoCanvas() {
   // ─── 즉시 저장 (flush) ───
   const flushSave = useCallback(() => {
     if (skipFlushRef.current) return;
+    if (isRemoteAction.current) return; // undo/redo/restore 중에는 저장 금지
     const fc = fabricRef.current;
     if (!fc) return;
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
@@ -151,7 +152,7 @@ export default function MemoCanvas() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       const fc = fabricRef.current;
-      if (!fc) return;
+      if (!fc || isRemoteAction.current) return;
       try {
         const payload = {
           canvas_json: JSON.stringify(fc.toJSON()),
@@ -640,6 +641,8 @@ export default function MemoCanvas() {
   undoRef.current = () => {
     const fc = fabricRef.current;
     if (!fc || undoStack.length <= 1) return;
+    // 진행 중인 저장 타이머 취소 (빈 캔버스 저장 방지)
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     const newUndo = [...undoStack];
     const cur = newUndo.pop()!;
     setRedoStack((p) => [...p, cur]);
@@ -657,6 +660,8 @@ export default function MemoCanvas() {
   redoRef.current = () => {
     const fc = fabricRef.current;
     if (!fc || redoStack.length === 0) return;
+    // 진행 중인 저장 타이머 취소 (빈 캔버스 저장 방지)
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     const newRedo = [...redoStack];
     const next = newRedo.pop()!;
     setRedoStack(newRedo);
