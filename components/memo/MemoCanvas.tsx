@@ -35,7 +35,6 @@ export default function MemoCanvas() {
   const skipFlushRef = useRef(false);
   const zoomRef = useRef(1);
   const initialLoadDoneRef = useRef(false);
-  const ignoreNextCanvasStateRef = useRef(false);
 
   const [activeTool, setActiveTool] = useState<ToolType>("select");
   const [isFitAll, setIsFitAll] = useState(false);
@@ -281,7 +280,7 @@ export default function MemoCanvas() {
 
     // ─── Fabric 이벤트 ───
     fc.on("object:modified", (e) => {
-      if (!e.target) return;
+      if (!e.target || isRemoteAction.current) return;
       saveSnapshot();
       scheduleSave();
       emitIfLocal("object:modified", { id: getObjId(e.target), data: e.target.toJSON() });
@@ -290,14 +289,14 @@ export default function MemoCanvas() {
 
     // 텍스트 내용 수정 후 편집 종료 시 저장 (타이핑만 하면 object:modified가 안 터지므로)
     fc.on("text:editing:exited", (e) => {
-      if (!e.target) return;
+      if (!e.target || isRemoteAction.current) return;
       saveSnapshot();
       scheduleSave();
       emitIfLocal("object:modified", { id: getObjId(e.target), data: e.target.toJSON() });
     });
 
     fc.on("object:removed", (e) => {
-      if (!e.target) return;
+      if (!e.target || isRemoteAction.current) return;
       scheduleSave();
       emitIfLocal("object:removed", { id: getObjId(e.target) });
     });
@@ -464,12 +463,9 @@ export default function MemoCanvas() {
     const socket = io({ transports: ["websocket", "polling"] });
     socketRef.current = socket;
 
-    // 소켓 재연결 시 서버의 오래된 캐시가 로컬 데이터를 덮어쓰는 것을 방지
+    // 소켓 (재)연결 시 로컬 데이터를 서버 캐시에 반영
     socket.on("connect", () => {
       if (initialLoadDoneRef.current && fabricRef.current) {
-        // 재연결 → 서버가 보내는 오래된 canvas:state 무시 설정
-        ignoreNextCanvasStateRef.current = true;
-        // 로컬 최신 데이터를 서버 캐시에 즉시 반영
         const fc2 = fabricRef.current;
         const payload = {
           canvas_json: JSON.stringify(fc2.toJSON()),
@@ -479,13 +475,13 @@ export default function MemoCanvas() {
       }
     });
 
+    // canvas:state 핸들러: API 로드 완료 후에는 완전 무시
+    // (초기 로드는 API가 담당, 실시간 동기화는 개별 이벤트가 담당)
+    // loadFromJSON은 캔버스를 통째로 교체하므로 데이터 손실 위험이 큼
     socket.on("canvas:state", (data) => {
       if (disposed) return;
-      // 소켓 재연결 시 서버가 보내는 오래된 캐시 무시 (로컬 데이터 보호)
-      if (ignoreNextCanvasStateRef.current) {
-        ignoreNextCanvasStateRef.current = false;
-        return;
-      }
+      // 이미 API에서 데이터를 로드했으면 canvas:state 무시 (데이터 보호)
+      if (initialLoadDoneRef.current) return;
       isRemoteAction.current = true;
       if (data.overlay_data) {
         try {
@@ -634,7 +630,11 @@ export default function MemoCanvas() {
     const prev = newUndo[newUndo.length - 1];
     if (prev) {
       isRemoteAction.current = true;
-      fc.loadFromJSON(JSON.parse(prev)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
+      fc.loadFromJSON(JSON.parse(prev)).then(() => {
+        fc.renderAll();
+        isRemoteAction.current = false;
+        scheduleSave();
+      });
     }
   };
   redoRef.current = () => {
@@ -645,7 +645,11 @@ export default function MemoCanvas() {
     setRedoStack(newRedo);
     setUndoStack((p) => [...p, next]);
     isRemoteAction.current = true;
-    fc.loadFromJSON(JSON.parse(next)).then(() => { fc.renderAll(); isRemoteAction.current = false; });
+    fc.loadFromJSON(JSON.parse(next)).then(() => {
+      fc.renderAll();
+      isRemoteAction.current = false;
+      scheduleSave();
+    });
   };
 
   // ─── 도구 변경 ───
@@ -1042,8 +1046,9 @@ export default function MemoCanvas() {
       const data = await res.json();
       if (!data.success) { alert("복구 실패"); return; }
 
-      // pending 저장 취소
+      // pending 저장/이력 타이머 취소
       if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+      if (historyTimerRef.current) { clearTimeout(historyTimerRef.current); historyTimerRef.current = null; }
 
       // 복구된 데이터를 서버에서 다시 가져와서 캔버스에 직접 로드
       const memoRes = await fetch("/api/memo");
