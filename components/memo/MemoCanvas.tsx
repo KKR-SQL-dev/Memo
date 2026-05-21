@@ -1121,6 +1121,14 @@ export default function MemoCanvas() {
 
       <div className="absolute left-0 w-full" style={{ top: HEADER_H, height: `calc(100vh - ${HEADER_H}px)` }}>
         <canvas ref={canvasRef} />
+        {/* 2분할 중앙 가이드 점선 */}
+        <div
+          className="pointer-events-none absolute top-0 bottom-0"
+          style={{
+            left: "50%",
+            borderLeft: "2px dashed rgba(255,255,255,0.3)",
+          }}
+        />
       </div>
 
       {/* 텍스트 입력 오버레이 */}
