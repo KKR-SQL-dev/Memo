@@ -84,7 +84,7 @@ export default function FloatingToolbar({
     window.addEventListener("touchend", handleUp);
   }, [pos]);
 
-  const ICON = 52;
+  const ICON = 42;
 
   const toolBtn = (tool: ToolType, Icon: typeof Type, label: string) => (
     <button
