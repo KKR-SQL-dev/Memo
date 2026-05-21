@@ -43,10 +43,10 @@ export async function POST() {
       FROM MemoBoard WHERE id=(SELECT TOP 1 id FROM MemoBoard ORDER BY id DESC)
       AND canvas_json IS NOT NULL AND LEN(canvas_json) > 10
     `);
-    // 최대 5건만 유지
+    // 최대 20건만 유지
     await pool.request().query(`
       DELETE FROM MemoBoard_Backup WHERE id NOT IN (
-        SELECT TOP 5 id FROM MemoBoard_Backup ORDER BY id DESC
+        SELECT TOP 20 id FROM MemoBoard_Backup ORDER BY id DESC
       )
     `);
     return NextResponse.json({ success: true });

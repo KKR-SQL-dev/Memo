@@ -34,6 +34,8 @@ export default function MemoCanvas() {
   const isRemoteAction = useRef(false);
   const skipFlushRef = useRef(false);
   const zoomRef = useRef(1);
+  const initialLoadDoneRef = useRef(false);
+  const ignoreNextCanvasStateRef = useRef(false);
 
   const [activeTool, setActiveTool] = useState<ToolType>("select");
   const [isFitAll, setIsFitAll] = useState(false);
@@ -78,6 +80,8 @@ export default function MemoCanvas() {
   const undoRef = useRef<() => void>(() => {});
   const redoRef = useRef<() => void>(() => {});
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasChangeSinceLastHistoryRef = useRef(false);
 
   // ─── 다크모드 ───
   const toggleDark = useCallback(() => {
@@ -160,6 +164,24 @@ export default function MemoCanvas() {
         console.error("Auto-save failed:", err);
       }
     }, 1500);
+
+    // ─── 1분 비활동 시 이력 자동 저장 ───
+    hasChangeSinceLastHistoryRef.current = true;
+    if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
+    historyTimerRef.current = setTimeout(async () => {
+      if (!hasChangeSinceLastHistoryRef.current) return;
+      try {
+        const res = await fetch("/api/memo/history", { method: "POST" });
+        if (res.ok) {
+          hasChangeSinceLastHistoryRef.current = false;
+          console.log("[Auto-History] 이력 자동 저장 완료");
+        } else {
+          console.error("[Auto-History] 이력 저장 실패:", res.status);
+        }
+      } catch (err) {
+        console.error("[Auto-History] 이력 저장 에러:", err);
+      }
+    }, 60_000); // 1분
   }, []);
 
   const emitIfLocal = useCallback((event: string, data: unknown) => {
@@ -264,6 +286,14 @@ export default function MemoCanvas() {
       scheduleSave();
       emitIfLocal("object:modified", { id: getObjId(e.target), data: e.target.toJSON() });
       updateSelection();
+    });
+
+    // 텍스트 내용 수정 후 편집 종료 시 저장 (타이핑만 하면 object:modified가 안 터지므로)
+    fc.on("text:editing:exited", (e) => {
+      if (!e.target) return;
+      saveSnapshot();
+      scheduleSave();
+      emitIfLocal("object:modified", { id: getObjId(e.target), data: e.target.toJSON() });
     });
 
     fc.on("object:removed", (e) => {
@@ -414,8 +444,11 @@ export default function MemoCanvas() {
               if (fc.backgroundColor) setBgColor(fc.backgroundColor as string);
               fc.renderAll();
               saveSnapshot();
+              initialLoadDoneRef.current = true;
             });
           } catch { /* ignore */ }
+        } else {
+          initialLoadDoneRef.current = true;
         }
         if (data.overlay_data) {
           try {
@@ -425,14 +458,34 @@ export default function MemoCanvas() {
           } catch { /* ignore */ }
         }
       })
-      .catch(() => {});
+      .catch(() => { initialLoadDoneRef.current = true; });
 
     // ─── Socket.IO ───
     const socket = io({ transports: ["websocket", "polling"] });
     socketRef.current = socket;
 
+    // 소켓 재연결 시 서버의 오래된 캐시가 로컬 데이터를 덮어쓰는 것을 방지
+    socket.on("connect", () => {
+      if (initialLoadDoneRef.current && fabricRef.current) {
+        // 재연결 → 서버가 보내는 오래된 canvas:state 무시 설정
+        ignoreNextCanvasStateRef.current = true;
+        // 로컬 최신 데이터를 서버 캐시에 즉시 반영
+        const fc2 = fabricRef.current;
+        const payload = {
+          canvas_json: JSON.stringify(fc2.toJSON()),
+          overlay_data: JSON.stringify({ tables: tablesRef.current, pins: pinMemosRef.current }),
+        };
+        socket.emit("canvas:sync", payload);
+      }
+    });
+
     socket.on("canvas:state", (data) => {
       if (disposed) return;
+      // 소켓 재연결 시 서버가 보내는 오래된 캐시 무시 (로컬 데이터 보호)
+      if (ignoreNextCanvasStateRef.current) {
+        ignoreNextCanvasStateRef.current = false;
+        return;
+      }
       isRemoteAction.current = true;
       if (data.overlay_data) {
         try {
@@ -562,7 +615,9 @@ export default function MemoCanvas() {
       fc.off("selection:updated", updateSelection);
       fc.off("selection:cleared");
       fc.off("after:render", syncOverlay);
+      fc.off("text:editing:exited");
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
       socket.disconnect();
       fc.dispose();
     };
