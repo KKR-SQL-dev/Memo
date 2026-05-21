@@ -1103,40 +1103,40 @@ export default function MemoCanvas() {
   return (
     <div className="relative w-full h-screen overflow-hidden bg-white dark:bg-[#121218]">
       {/* ─── 상단 헤더 ─── */}
-      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-center gap-6" style={{ height: HEADER_H }}>
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-center gap-8" style={{ height: HEADER_H }}>
         <a
           href="http://192.168.107.6:3501"
-          className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-sky-500 dark:hover:text-sky-400 transition-colors"
+          className="flex items-center gap-2 text-base text-gray-400 dark:text-gray-500 hover:text-sky-500 dark:hover:text-sky-400 transition-colors"
           title="쿠라레 메인 포탈"
         >
-          <Home size={15} className="text-sky-400" />
+          <Home size={20} className="text-sky-400" />
           <span>쿠라레 메인 포탈</span>
         </a>
-        <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
-        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">메모장</span>
-        <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
+        <span className="text-gray-300 dark:text-gray-600 text-sm">/</span>
+        <span className="text-base font-semibold text-gray-700 dark:text-gray-200">메모장</span>
+        <span className="text-gray-300 dark:text-gray-600 text-sm">/</span>
         <button
           onClick={handleFitAll}
-          className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-sky-500 dark:hover:text-sky-400 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-sky-500 dark:hover:text-sky-400 transition-colors"
           title="모든 메모가 보이도록 화면 맞춤"
         >
-          <Maximize2 size={12} />
+          <Maximize2 size={16} />
           전체보기
         </button>
-        <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
+        <span className="text-gray-300 dark:text-gray-600 text-sm">/</span>
         <button
           onClick={handleClear}
-          className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
         >
-          <Trash2 size={12} />
+          <Trash2 size={16} />
           전체삭제
         </button>
-        <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
+        <span className="text-gray-300 dark:text-gray-600 text-sm">/</span>
         <button
           onClick={handleOpenHistory}
-          className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
         >
-          <History size={12} />
+          <History size={16} />
           이력
         </button>
       </div>
