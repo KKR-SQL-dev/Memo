@@ -84,13 +84,13 @@ export default function FloatingToolbar({
     window.addEventListener("touchend", handleUp);
   }, [pos]);
 
-  const ICON = 32;
+  const ICON = 24;
 
   const toolBtn = (tool: ToolType, Icon: typeof Type, label: string) => (
     <button
       key={tool}
       onClick={() => onToolChange(tool)}
-      className={`p-3 rounded-xl transition-colors ${
+      className={`p-2 rounded-lg transition-colors ${
         activeTool === tool
           ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30"
           : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"
@@ -104,17 +104,17 @@ export default function FloatingToolbar({
   return (
     <div
       ref={barRef}
-      className="absolute z-50 flex items-center gap-1.5 px-4 py-3 bg-white/95 dark:bg-[#1e1e2e]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-[#444]"
+      className="absolute z-50 flex items-center gap-1 px-3 py-2 bg-white/95 dark:bg-[#1e1e2e]/95 backdrop-blur-xl rounded-xl shadow-2xl border border-gray-200 dark:border-[#444]"
       style={pos ? { left: pos.x, top: pos.y, cursor: isDragging ? "grabbing" : undefined } : { bottom: 24, left: "50%", transform: "translateX(-50%)" }}
     >
       {/* 드래그 핸들 */}
       <div
-        className="flex items-center justify-center cursor-grab active:cursor-grabbing px-1 py-2 -ml-1 mr-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+        className="flex items-center justify-center cursor-grab active:cursor-grabbing px-0.5 py-1 -ml-1 mr-0.5 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}
         title="드래그하여 이동"
       >
-        <GripVertical size={24} />
+        <GripVertical size={18} />
       </div>
       {toolBtn("select", MousePointer2, "선택")}
       {toolBtn("hand", Hand, "화면 이동")}
@@ -123,14 +123,14 @@ export default function FloatingToolbar({
       {toolBtn("pin", Pin, "고정 메모")}
       {toolBtn("image", ImagePlus, "이미지")}
 
-      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
+      <div className="w-px h-7 bg-gray-300 dark:bg-[#555] mx-1" />
 
       {toolBtn("pen", Pencil, "펜")}
       {toolBtn("handwriting", PenLine, "스마트펜")}
       <div className="relative">
         <button
           onClick={() => { onToolChange("eraser"); setShowEraserSize(!showEraserSize); setShowPenColor(false); setShowBgColor(false); }}
-          className={`p-3 rounded-xl transition-colors ${
+          className={`p-2 rounded-lg transition-colors ${
             activeTool === "eraser"
               ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30"
               : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333]"
@@ -163,17 +163,17 @@ export default function FloatingToolbar({
         )}
       </div>
 
-      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
+      <div className="w-px h-7 bg-gray-300 dark:bg-[#555] mx-1" />
 
       {/* 색상 */}
       <div className="relative">
         <button
           onClick={() => { setShowPenColor(!showPenColor); setShowBgColor(false); }}
-          className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+          className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
           title="글자색"
         >
           <Palette size={ICON} />
-          <span className="absolute bottom-1.5 right-1.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-[#1e1e2e] shadow-sm" style={{ backgroundColor: penColor }} />
+          <span className="absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-white dark:border-[#1e1e2e] shadow-sm" style={{ backgroundColor: penColor }} />
         </button>
         {showPenColor && <ColorPicker color={penColor} onChange={onPenColorChange} onClose={() => setShowPenColor(false)} />}
       </div>
@@ -181,21 +181,21 @@ export default function FloatingToolbar({
       <div className="relative">
         <button
           onClick={() => { setShowBgColor(!showBgColor); setShowPenColor(false); }}
-          className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+          className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
           title="배경색"
         >
           <PaintBucket size={ICON} />
-          <span className="absolute bottom-1.5 right-1.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-[#1e1e2e] shadow-sm" style={{ backgroundColor: bgColor }} />
+          <span className="absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-white dark:border-[#1e1e2e] shadow-sm" style={{ backgroundColor: bgColor }} />
         </button>
         {showBgColor && <ColorPicker color={bgColor} onChange={onBgColorChange} onClose={() => setShowBgColor(false)} />}
       </div>
 
-      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
+      <div className="w-px h-7 bg-gray-300 dark:bg-[#555] mx-1" />
 
       <button
         onClick={onUndo}
         disabled={!canUndo}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
         title="되돌리기 (Ctrl+Z)"
       >
         <Undo2 size={ICON} />
@@ -203,37 +203,37 @@ export default function FloatingToolbar({
       <button
         onClick={onRedo}
         disabled={!canRedo}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors disabled:opacity-30"
         title="다시실행 (Ctrl+Y)"
       >
         <Redo2 size={ICON} />
       </button>
 
-      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
+      <div className="w-px h-7 bg-gray-300 dark:bg-[#555] mx-1" />
 
       <button
         onClick={onZoomOut}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
         title="축소"
       >
         <ZoomOut size={ICON} />
       </button>
       <button
         onClick={onZoomIn}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
         title="확대"
       >
         <ZoomIn size={ICON} />
       </button>
 
-      <div className="w-px h-10 bg-gray-300 dark:bg-[#555] mx-1.5" />
+      <div className="w-px h-7 bg-gray-300 dark:bg-[#555] mx-1" />
 
       <button
         onClick={() => {
           // Windows 터치 키보드(TabTip.exe) 실행
           fetch("/api/keyboard", { method: "POST" });
         }}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
         title="가상 키보드"
       >
         <Keyboard size={ICON} />
@@ -241,7 +241,7 @@ export default function FloatingToolbar({
 
       <button
         onClick={onToggleDark}
-        className="p-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
         title={isDark ? "라이트 모드" : "다크 모드"}
       >
         {isDark ? <Sun size={ICON} /> : <Moon size={ICON} />}

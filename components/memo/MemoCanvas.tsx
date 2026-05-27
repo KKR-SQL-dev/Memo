@@ -67,6 +67,8 @@ export default function MemoCanvas() {
   } | null>(null);
   const pinMemosRef = useRef<PinMemoData[]>([]);
   pinMemosRef.current = pinMemos;
+  const historyBtnRef = useRef<HTMLButtonElement>(null);
+  const [guideLineX, setGuideLineX] = useState<number | null>(null);
   const isDarkRef = useRef(isDark);
   isDarkRef.current = isDark;
   const activeToolRef = useRef(activeTool);
@@ -100,6 +102,17 @@ export default function MemoCanvas() {
     });
   }, []);
 
+  // ─── 2분할 가이드 점선 위치 (이력 버튼 오른쪽 끝 기준) ───
+  useEffect(() => {
+    const update = () => {
+      if (historyBtnRef.current) {
+        setGuideLineX(historyBtnRef.current.getBoundingClientRect().right);
+      }
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   // ─── 스냅샷 ───
   const saveSnapshot = useCallback(() => {
@@ -1133,6 +1146,7 @@ export default function MemoCanvas() {
         </button>
         <span className="text-gray-300 dark:text-gray-600 text-sm">/</span>
         <button
+          ref={historyBtnRef}
           onClick={handleOpenHistory}
           className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
         >
@@ -1143,14 +1157,16 @@ export default function MemoCanvas() {
 
       <div className="absolute left-0 w-full" style={{ top: HEADER_H, height: `calc(100vh - ${HEADER_H}px)` }}>
         <canvas ref={canvasRef} />
-        {/* 2분할 가이드 점선 (전체삭제 버튼 아래 기준) */}
-        <div
-          className="pointer-events-none absolute top-0 bottom-0"
-          style={{
-            left: "60%",
-            borderLeft: "2px dashed rgba(255,255,255,0.3)",
-          }}
-        />
+        {/* 2분할 가이드 점선 (이력 버튼 오른쪽 끝 기준) */}
+        {guideLineX != null && (
+          <div
+            className="pointer-events-none fixed top-0 bottom-0"
+            style={{
+              left: guideLineX,
+              borderLeft: "2px dashed rgba(255,255,255,0.3)",
+            }}
+          />
+        )}
       </div>
 
       {/* 텍스트 입력 오버레이 */}
