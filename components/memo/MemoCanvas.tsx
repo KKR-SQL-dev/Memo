@@ -253,12 +253,6 @@ export default function MemoCanvas() {
       fc.setViewportTransform(vt);
     };
 
-    // ─── 원격 변경 시 뷰포트 리셋 (전자칠판에서 항상 메모가 보이게) ───
-    const resetViewport = () => {
-      fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
-      zoomRef.current = 1;
-    };
-
     // ─── 마우스 휠 줌 & 가로 스크롤 ───
     fc.on("mouse:wheel", (opt) => {
       const e = opt.e as WheelEvent;
@@ -589,7 +583,6 @@ export default function MemoCanvas() {
         if (obj) {
           setObjId(obj, data.id);
           fc.add(obj);
-          resetViewport();
           fc.renderAll();
         }
         isRemoteAction.current = false;
@@ -610,7 +603,6 @@ export default function MemoCanvas() {
             setObjId(obj, data.id);
             fc.add(obj);
             if (idx < fc.getObjects().length - 1) fc.moveObjectTo(obj, idx);
-            resetViewport();
             fc.renderAll();
           }
           isRemoteAction.current = false;
@@ -624,7 +616,7 @@ export default function MemoCanvas() {
       if (disposed) return;
       isRemoteAction.current = true;
       const t = fc.getObjects().find((o) => getObjId(o) === data.id);
-      if (t) { fc.remove(t); resetViewport(); fc.renderAll(); }
+      if (t) { fc.remove(t); fc.renderAll(); }
       isRemoteAction.current = false;
     });
 
@@ -637,7 +629,6 @@ export default function MemoCanvas() {
         if (obj) {
           setObjId(obj, data.id);
           fc.add(obj);
-          resetViewport();
           fc.renderAll();
         }
         isRemoteAction.current = false;
@@ -657,7 +648,6 @@ export default function MemoCanvas() {
       isRemoteAction.current = true;
       fc.getObjects().forEach((obj) => fc.remove(obj));
       fc.discardActiveObject();
-      resetViewport();
       fc.renderAll();
       setTables([]);
       setPinMemos([]);
