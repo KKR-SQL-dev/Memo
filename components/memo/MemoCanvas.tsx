@@ -285,6 +285,10 @@ export default function MemoCanvas() {
       }
     });
 
+    // ─── 화면 영역 가이드 (초기 뷰포트 크기 기억) ───
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight - HEADER_H;
+
     // ─── 오버레이(핀메모/표) 동기화: 캔버스 줌·팬에 맞춰 CSS 변환 ───
     const syncOverlay = () => {
       if (!overlayRef.current) return;
@@ -300,7 +304,21 @@ export default function MemoCanvas() {
         overlayRef.current.style.transformOrigin = "0 0";
       }
     };
-    fc.on("after:render", syncOverlay);
+    // ─── 화면 영역 가이드 사각형 렌더링 ───
+    const drawScreenGuide = () => {
+      const ctx = fc.getContext();
+      const vt = fc.viewportTransform;
+      if (!ctx || !vt) return;
+      ctx.save();
+      // 뷰포트 변환 적용하여 캔버스 좌표계에 그리기
+      ctx.setTransform(vt[0], vt[1], vt[2], vt[3], vt[4], vt[5]);
+      ctx.strokeStyle = "rgba(100,160,255,0.25)";
+      ctx.lineWidth = 2 / vt[0]; // 줌에 관계없이 일정한 두께
+      ctx.setLineDash([8 / vt[0], 6 / vt[0]]);
+      ctx.strokeRect(0, 0, screenW, screenH);
+      ctx.restore();
+    };
+    fc.on("after:render", () => { syncOverlay(); drawScreenGuide(); });
 
     // ─── Fabric 이벤트 ───
     fc.on("object:modified", (e) => {
@@ -465,6 +483,9 @@ export default function MemoCanvas() {
               });
               // 배경색 동기화 (지우개가 올바른 색 사용하도록)
               if (fc.backgroundColor) setBgColor(fc.backgroundColor as string);
+              // 로드 시 항상 줌=1, 팬=원점으로 리셋
+              fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
+              zoomRef.current = 1;
               fc.renderAll();
               saveSnapshot();
               initialLoadDoneRef.current = true;
