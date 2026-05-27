@@ -68,7 +68,8 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3004 " ^| findstr "LISTENIN
     echo   Background mode - safe to close
     echo   Log: server.log / Stop: stop.bat
     echo ========================================
-    timeout /t 3
+    echo.
+    pause
     exit /b 0
 )
 if %RETRY% lss 15 goto WAIT_LOOP
