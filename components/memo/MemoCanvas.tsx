@@ -267,7 +267,7 @@ export default function MemoCanvas() {
         let zoom = fc.getZoom();
         zoom *= 0.999 ** delta;
         if (zoom > 5) zoom = 5;
-        if (zoom < 1) zoom = 1;
+        if (zoom < 0.8) zoom = 0.8;
         fc.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
         zoomRef.current = zoom;
         clampViewport();
@@ -472,7 +472,7 @@ export default function MemoCanvas() {
         if (lastDist > 0) {
           let zoom = fc.getZoom() * (dist / lastDist);
           if (zoom > 5) zoom = 5;
-          if (zoom < 1) zoom = 1;
+          if (zoom < 0.8) zoom = 0.8;
           fc.zoomToPoint(new Point(cx, cy - HEADER_H), zoom);
           zoomRef.current = zoom;
           // 두 손가락 동시 패닝
@@ -1072,7 +1072,7 @@ export default function MemoCanvas() {
     if (!fc) return;
     setIsFitAll(false);
     let zoom = fc.getZoom() / 1.2;
-    if (zoom < 1) zoom = 1;
+    if (zoom < 0.8) zoom = 0.8;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
     zoomRef.current = zoom;
     fc.renderAll();
