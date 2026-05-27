@@ -236,22 +236,27 @@ export default function MemoCanvas() {
     const handleBeforeUnload = () => { flushRef.current(); };
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-    // ─── 뷰포트 범위 제한 (화면 영역 밖으로 너무 멀리 못 가게) ───
+    // ─── 뷰포트 범위 제한 (화면 밖으로 벗어나지 않게) ───
     const clampViewport = () => {
       const vt = fc.viewportTransform;
       if (!vt) return;
       const zoom = vt[0];
       const cw = fc.getWidth();
       const ch = fc.getHeight();
-      // 화면 크기의 50%까지만 이동 허용
-      const margin = 0.5;
-      const minX = -cw * margin;
-      const maxX = cw * margin;
-      const minY = -ch * margin;
-      const maxY = ch * margin;
-      vt[4] = Math.max(minX * zoom, Math.min(maxX, vt[4]));
-      vt[5] = Math.max(minY * zoom, Math.min(maxY, vt[5]));
+      // panX: 오른쪽으로 밀면 최대 0(왼쪽 끝 고정), 왼쪽으로 밀면 화면 밖으로 안 나가게
+      const minX = cw - cw * zoom; // 줌인 상태에서 오른쪽 끝까지만
+      const maxX = 0;              // 왼쪽 끝은 원점 고정
+      const minY = ch - ch * zoom;
+      const maxY = 0;
+      vt[4] = Math.max(minX, Math.min(maxX, vt[4]));
+      vt[5] = Math.max(minY, Math.min(maxY, vt[5]));
       fc.setViewportTransform(vt);
+    };
+
+    // ─── 원격 변경 시 뷰포트 리셋 (전자칠판에서 항상 메모가 보이게) ───
+    const resetViewport = () => {
+      fc.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      zoomRef.current = 1;
     };
 
     // ─── 마우스 휠 줌 & 가로 스크롤 ───
@@ -267,8 +272,8 @@ export default function MemoCanvas() {
         const delta = e.deltaY;
         let zoom = fc.getZoom();
         zoom *= 0.999 ** delta;
-        if (zoom > 3) zoom = 3;
-        if (zoom < 0.5) zoom = 0.5;
+        if (zoom > 5) zoom = 5;
+        if (zoom < 0.3) zoom = 0.3;
         fc.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
         zoomRef.current = zoom;
         clampViewport();
@@ -472,8 +477,8 @@ export default function MemoCanvas() {
         const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         if (lastDist > 0) {
           let zoom = fc.getZoom() * (dist / lastDist);
-          if (zoom > 3) zoom = 3;
-          if (zoom < 0.5) zoom = 0.5;
+          if (zoom > 5) zoom = 5;
+          if (zoom < 0.3) zoom = 0.3;
           fc.zoomToPoint(new Point(cx, cy - HEADER_H), zoom);
           zoomRef.current = zoom;
           // 두 손가락 동시 패닝
@@ -584,6 +589,7 @@ export default function MemoCanvas() {
         if (obj) {
           setObjId(obj, data.id);
           fc.add(obj);
+          resetViewport();
           fc.renderAll();
         }
         isRemoteAction.current = false;
@@ -604,6 +610,7 @@ export default function MemoCanvas() {
             setObjId(obj, data.id);
             fc.add(obj);
             if (idx < fc.getObjects().length - 1) fc.moveObjectTo(obj, idx);
+            resetViewport();
             fc.renderAll();
           }
           isRemoteAction.current = false;
@@ -617,7 +624,7 @@ export default function MemoCanvas() {
       if (disposed) return;
       isRemoteAction.current = true;
       const t = fc.getObjects().find((o) => getObjId(o) === data.id);
-      if (t) { fc.remove(t); fc.renderAll(); }
+      if (t) { fc.remove(t); resetViewport(); fc.renderAll(); }
       isRemoteAction.current = false;
     });
 
@@ -630,6 +637,7 @@ export default function MemoCanvas() {
         if (obj) {
           setObjId(obj, data.id);
           fc.add(obj);
+          resetViewport();
           fc.renderAll();
         }
         isRemoteAction.current = false;
@@ -649,6 +657,7 @@ export default function MemoCanvas() {
       isRemoteAction.current = true;
       fc.getObjects().forEach((obj) => fc.remove(obj));
       fc.discardActiveObject();
+      resetViewport();
       fc.renderAll();
       setTables([]);
       setPinMemos([]);
@@ -1062,7 +1071,7 @@ export default function MemoCanvas() {
     if (!fc) return;
     setIsFitAll(false);
     let zoom = fc.getZoom() * 1.2;
-    if (zoom > 3) zoom = 3;
+    if (zoom > 5) zoom = 5;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
     zoomRef.current = zoom;
     fc.renderAll();
@@ -1073,7 +1082,7 @@ export default function MemoCanvas() {
     if (!fc) return;
     setIsFitAll(false);
     let zoom = fc.getZoom() / 1.2;
-    if (zoom < 0.5) zoom = 0.5;
+    if (zoom < 0.3) zoom = 0.3;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
     zoomRef.current = zoom;
     fc.renderAll();
