@@ -236,6 +236,24 @@ export default function MemoCanvas() {
     const handleBeforeUnload = () => { flushRef.current(); };
     window.addEventListener("beforeunload", handleBeforeUnload);
 
+    // ─── 뷰포트 범위 제한 (화면 영역 밖으로 너무 멀리 못 가게) ───
+    const clampViewport = () => {
+      const vt = fc.viewportTransform;
+      if (!vt) return;
+      const zoom = vt[0];
+      const cw = fc.getWidth();
+      const ch = fc.getHeight();
+      // 화면 크기의 50%까지만 이동 허용
+      const margin = 0.5;
+      const minX = -cw * margin;
+      const maxX = cw * margin;
+      const minY = -ch * margin;
+      const maxY = ch * margin;
+      vt[4] = Math.max(minX * zoom, Math.min(maxX, vt[4]));
+      vt[5] = Math.max(minY * zoom, Math.min(maxY, vt[5]));
+      fc.setViewportTransform(vt);
+    };
+
     // ─── 마우스 휠 줌 & 가로 스크롤 ───
     fc.on("mouse:wheel", (opt) => {
       const e = opt.e as WheelEvent;
@@ -244,14 +262,16 @@ export default function MemoCanvas() {
       if (e.altKey) {
         // Alt+휠 → 가로 스크롤
         fc.relativePan(new Point(-e.deltaY, 0));
+        clampViewport();
       } else {
         const delta = e.deltaY;
         let zoom = fc.getZoom();
         zoom *= 0.999 ** delta;
-        if (zoom > 5) zoom = 5;
-        if (zoom < 0.3) zoom = 0.3;
+        if (zoom > 3) zoom = 3;
+        if (zoom < 0.5) zoom = 0.5;
         fc.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
         zoomRef.current = zoom;
+        clampViewport();
       }
     });
 
@@ -272,6 +292,7 @@ export default function MemoCanvas() {
       if (!isPanning) return;
       const e = opt.e as MouseEvent;
       fc.relativePan(new Point(e.clientX - panLastPos.x, e.clientY - panLastPos.y));
+      clampViewport();
       panLastPos = { x: e.clientX, y: e.clientY };
     });
     fc.on("mouse:up", () => {
@@ -451,12 +472,13 @@ export default function MemoCanvas() {
         const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         if (lastDist > 0) {
           let zoom = fc.getZoom() * (dist / lastDist);
-          if (zoom > 5) zoom = 5;
-          if (zoom < 0.3) zoom = 0.3;
+          if (zoom > 3) zoom = 3;
+          if (zoom < 0.5) zoom = 0.5;
           fc.zoomToPoint(new Point(cx, cy - HEADER_H), zoom);
           zoomRef.current = zoom;
           // 두 손가락 동시 패닝
           fc.relativePan(new Point(cx - lastCenter.x, cy - lastCenter.y));
+          clampViewport();
         }
         lastDist = dist;
         lastCenter = { x: cx, y: cy };
@@ -1040,7 +1062,7 @@ export default function MemoCanvas() {
     if (!fc) return;
     setIsFitAll(false);
     let zoom = fc.getZoom() * 1.2;
-    if (zoom > 5) zoom = 5;
+    if (zoom > 3) zoom = 3;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
     zoomRef.current = zoom;
     fc.renderAll();
@@ -1051,7 +1073,7 @@ export default function MemoCanvas() {
     if (!fc) return;
     setIsFitAll(false);
     let zoom = fc.getZoom() / 1.2;
-    if (zoom < 0.3) zoom = 0.3;
+    if (zoom < 0.5) zoom = 0.5;
     fc.zoomToPoint(new Point(fc.getWidth() / 2, fc.getHeight() / 2), zoom);
     zoomRef.current = zoom;
     fc.renderAll();
